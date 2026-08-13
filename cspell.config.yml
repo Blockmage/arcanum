@@ -1,0 +1,50 @@
+version: "0.2"
+allowCompoundWords: true
+ignorePaths:
+  - "**/__pycache__/**"
+  - "**/_meta/**"
+  - "**/.*cache/**"
+  - "**/.devenv/**"
+  - "**/.editorconfig"
+  - "**/.gitignore"
+  - "**/.venv/**"
+  - "**/uv.lock"
+import:
+  - https://cdn.jsdelivr.net/npm/@cspell/dict-de-de@4/cspell-ext.json
+  - https://cdn.jsdelivr.net/npm/@cspell/dict-en_us@4/cspell-ext.json
+dictionaries:
+  - aws
+  - bash
+  - coding-compound-terms
+  - companies
+  - cryptocurrencies
+  - de_DE
+  - en_US
+  - filetypes
+  - fullstack
+  - golang
+  - lorem-ipsum
+  - networking-terms
+  - node
+  - npm
+  - public-licenses
+  - python
+  - python-common
+  - software-tools
+  - softwareTerms
+ignoreWords:
+  - cachix
+  - direnvrc
+  - gnused
+  - golangci
+  - gopls
+  - hujson
+  - jnoortheen
+  - nixd
+  - nixpkgs
+  - norecursedirs
+  - numtide
+  - runonsave
+  - sema
+  - taplo
+words: []

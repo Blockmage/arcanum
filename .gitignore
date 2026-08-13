@@ -1,0 +1,356 @@
+*
+!*/
+
+### ========= Add paths specific to this project here =========
+!/src/**/*
+### ===========================================================
+
+# --------- Top-level '_meta' directory
+!/_meta/config/**/*
+!/_meta/nix/**/*
+!/_meta/scripts/**/*
+!/_meta/templates/**/*
+
+# --------- Treefmt
+# '/_meta/config/treefmt.toml' is created automatically from '/_meta/nix/treefmt.nix'
+!treefmt.nix
+treefmt.toml
+
+# --------- Git / GitHub
+!.git-blame-ignore-revs
+!.gitattributes
+!.github/**/*
+!.gitignore
+!.gitkeep
+!.gitmodules
+!.keep
+
+# --------- Common
+!ATTRIBUTION*
+!CHANGELOG*
+!CODE*OF*CONDUCT*
+!CONTRIBUTING*
+!COPYING*
+!FUNDING*
+!LICENSE*
+!NOTICE*
+!README*
+!SECURITY*
+!SUPPORT*
+
+# --------- Generic
+!*.config.*
+!.*ignore
+!.*rc
+!.*rc.*
+
+# --------- VS Code
+!.vscode/*.json
+!.vscode/*.jsonc
+
+# --------- Custom cSpell wordlists
+!.cspell.txt
+!cspell.txt
+
+# --------- Polylith
+# https://davidvujic.github.io/python-polylith-docs/workspace/
+!/bases/**/*
+!/components/**/*
+!/development/**/*
+!/projects/**/*
+
+# --------- Commitizen
+# https://github.com/commitizen-tools/commitizen
+!.cz.json
+!.cz.toml
+!.cz.yaml
+!cz.json
+!cz.toml
+!cz.yaml
+
+# --------- agebox / age-encrypted files
+# https://github.com/slok/agebox
+!*.age
+!*.agebox
+!.ageboxreg.*
+
+# --------- MarkdownLint
+# https://github.com/DavidAnson/markdownlint
+!.markdownlint-cli2.*
+!.markdownlint.*
+
+# --------- yamlfmt
+# https://github.com/google/yamlfmt
+!.yamlfmt.*
+!yamlfmt.*
+
+# --------- Cargo / Clippy
+# https://github.com/rust-lang/cargo
+!.clippy.toml
+!Cargo.lock
+!Cargo.toml
+!clippy.toml
+
+# --------- EditorConfig
+# https://github.com/editorconfig/editorconfig
+!.editorconfig
+
+# --------- Python / pyproject.toml
+# https://packaging.python.org/en/latest/guides/writing-pyproject-toml
+!.python-version
+!pyproject.toml
+
+# --------- Flake8
+# https://github.com/PyCQA/flake8
+!.flake8
+
+# --------- tox
+# https://github.com/tox-dev/tox
+!tox.ini
+
+# --------- Setuptools
+# https://github.com/pypa/setuptools
+!setup.cfg
+!setup.py
+
+# --------- isort
+# https://github.com/PyCQA/isort
+!.isort.cfg
+
+# --------- Pyright / Pylance
+# https://github.com/microsoft/pyright
+!pyrightconfig.json*
+
+# --------- Ruff
+# https://github.com/astral-sh/ruff
+!.ruff.toml
+!ruff.toml
+
+# --------- uv
+# https://github.com/astral-sh/uv
+!uv.lock
+!uv.toml
+
+# --------- TypeScript
+# https://github.com/microsoft/TypeScript
+!tsconfig.*
+
+# --------- Node.js
+# https://github.com/npm/cli
+!package.json
+!package.yaml
+
+# --------- Bun
+# https://github.com/oven-sh/bun
+!bun.lock
+
+# --------- Deno
+# https://github.com/denoland/deno
+!deno.json
+!deno.jsonc
+
+# --------- ESLint
+# https://github.com/eslint/eslint
+!eslint.config.*
+!eslintrc.*
+
+# --------- MkDocs
+# https://github.com/mkdocs/mkdocs
+!mkdocs.*
+
+# --------- pnpm
+# https://github.com/pnpm/pnpm
+!pnpm-*.*
+!pnpmfile.*
+
+# --------- Prettier
+# https://github.com/prettier/prettier
+!.prettierrc
+!.prettierrc.*
+
+# --------- Stylelint
+# https://github.com/stylelint/stylelint
+!.stylelintrc
+!.stylelintrc.*
+
+# --------- Biome
+# https://github.com/biomejs/biome
+!biome.json*
+
+# --------- Taplo
+# https://github.com/tamasfe/taplo
+!taplo.toml
+
+# --------- GitLeaks
+# https://github.com/gitleaks
+!.gitleaksignore
+!gitleaks.toml
+
+# --------- Hadolint
+# https://github.com/hadolint/hadolint
+!.hadolint.y*ml
+!hadolint.yaml
+
+# --------- devenv
+# https://github.com/cachix/devenv
+!devenv.lock
+!devenv.nix
+!devenv.yaml
+
+# --------- Dev Containers
+# https://github.com/devcontainers
+!.devcontainer/**/*
+
+# --------- Docker
+# https://github.com/docker
+!*-compose.y*ml
+!*-docker-compose.y*ml
+!*.Dockerfile
+!*.compose.y*ml
+!*.docker-compose.y*ml
+!Dockerfile
+!compose.y*ml
+!docker-compose.y*ml
+
+# --------- Brewfile
+# https://docs.brew.sh/Brew-Bundle-and-Brewfile
+!.Brewfile
+!Brewfile
+
+# =================== Ignored at all levels ===================
+$RECYCLE.BIN/
+*$py.class
+*.*[Cc][Aa][Cc][Hh][Ee]*
+*.asc
+*.bin
+*.box
+*.cab
+*.cert
+*.crt
+*.dll
+*.dylib
+*.env*
+*.exe
+*.exe~
+*.gpg
+*.icloud
+*.jks
+*.jwk
+*.jws
+*.key
+*.keychain-db
+*.lnk
+*.log
+*.msi
+*.msix
+*.msm
+*.msp
+*.out
+*.ovpn
+*.p12
+*.p7*
+*.p8
+*.pdb
+*.pem
+*.pfx
+*.pgp
+*.ppk
+*.py[cod]
+*.rs.bk
+*.secret
+*.so
+*.stackdump
+*.test
+*.tfstate*
+*.tmp
+*.token
+*.tsbuildinfo
+*.vsix
+*_ed25519
+*_override.tf*
+*_rsa
+*keychain*.db
+*~
+.Apple*
+.DS_Store
+.DocumentRevisions-V100/
+.LSOverride
+.Spotlight-V100/
+.TemporaryItems
+.Trash-*
+.Trashes
+.VolumeIcon.icns
+.[Tt]emp
+.[Tt]emporary*
+.[Tt]rash*
+._*
+.apdisk
+.aws/
+.com.apple.*
+.devenv*
+.directory
+.direnv
+.fseventsd/
+.fuse_hidden*
+.history/
+.htaccess
+.ipynb_checkpoints/
+.keychain-db
+.kube/
+.local/
+.next/
+.nfs*
+.npm/
+.nuxt/
+.nvm/
+.secret/
+.secrets/
+.terraformrc
+.venv/
+.vercel/
+.vscode-test/
+.yarn/
+1password-credentials.json
+Network Trash Folder/
+Temporary Items
+Thumbs.*
+[Dd]esktop.ini
+[Tt]emporary*
+[Tt]rash*
+[Vv]irtual[Ee]nv/
+__pycache__/
+credentials
+devenv.local.nix
+devenv.local.yaml
+dist/
+docker/**/*.conf
+docker/**/*config*
+docker/**/*data
+docker/**/*secret*
+docker/**/env/*
+ehthumbs*
+env/
+envs/
+go.work
+go.work.sum
+jspm_packages/
+key
+key.*
+keychain
+kubeconfig
+next-env.d.ts
+node_modules/
+override.tf*
+secring.*
+styled-system-studio/
+styled-system/
+target/debug/
+target/release/
+terraform.rc
+venv/
+web_modules/
+wheels/
+
+# ========================= Overrides =========================
+!*example*
+!.envrc

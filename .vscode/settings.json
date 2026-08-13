@@ -1,0 +1,83 @@
+{
+  "editor.formatOnSave": false,
+
+  "emeraldwalk.runonsave": {
+    "showElapsed": true,
+    "commands": [
+      {
+        "cmd": "\"${workspaceFolder}/_meta/bin/treefmt\" --config-file \"${workspaceFolder}/_meta/config/treefmt.toml\" \"${file}\"",
+        "match": ".*"
+      }
+    ]
+  },
+
+  "scm.defaultViewMode": "tree",
+
+  "bashIde.backgroundAnalysisMaxFiles": 0,
+  "bashIde.includeAllWorkspaceSymbols": false,
+  "bashIde.shfmt.caseIndent": true,
+
+  "biome.lsp.bin": "${workspaceFolder}/_meta/bin/biome",
+  "ruff.configuration": "${workspaceFolder}/_meta/config/ruff.toml",
+  "evenBetterToml.taplo.configFile.path": "_meta/config/taplo.toml",
+
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": ["--config=${workspaceFolder}/_meta/config/.golangci.yml"],
+  "go.alternateTools": {
+    "golangci-lint": "${workspaceFolder}/_meta/bin/golangci-lint",
+    "gopls": "${workspaceFolder}/_meta/bin/gopls",
+    "dlv": "${workspaceFolder}/_meta/bin/dlv"
+  },
+  "gopls": {
+    "ui.diagnostic.analyses": {
+      "shadow": true,
+      "unusedparams": true,
+      "unusedwrite": true
+    }
+  },
+
+  "python.useEnvironmentsExtension": true,
+  "python.testing.pytestArgs": ["."],
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+
+  "nix.enableLanguageServer": true,
+  "nix.hiddenLanguageServerErrors": ["textDocument/definition"],
+  "nix.serverPath": "nixd",
+  "nix.serverSettings": {
+    "nil": {
+      "formatting": {
+        "command": ["alejandra"]
+      },
+      "diagnostics": {
+        "ignored": ["unused_binding", "unused_with"]
+      }
+    },
+    "nixd": {
+      "formatting": {
+        "command": ["alejandra"]
+      },
+      "diagnostic": {
+        "suppress": ["sema-unused-def-lambda-noarg-formal"]
+      }
+    }
+  },
+
+  "json.schemas": [
+    {
+      "fileMatch": ["*.hujson"],
+      "schema": { "allowTrailingCommas": true }
+    }
+  ],
+
+  "files.associations": {
+    "*.code-workspace": "jsonc",
+    "*.env*": "shellscript",
+    ".prettierrc": "yaml",
+    "LICENSE*": "plaintext",
+    "extensions.json": "jsonc",
+    "pyrightconfig.json": "jsonc",
+    "settings.json": "jsonc",
+    "wrangler.json": "jsonc"
+  }
+}

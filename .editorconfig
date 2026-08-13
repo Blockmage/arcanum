@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[{*.py,*.pyi,*.ipynb}]
+indent_size = 4
+
+[{*.sh,*.env,*.envrc}]
+binary_next_line = false
+function_next_line = false
+keep_padding = false
+never_split = true
+shell_variant = bash
+space_redirects = false
+switch_case_indent = true
+
+[{*.go,Makefile}]
+indent_style = tab
+tab_width = 4

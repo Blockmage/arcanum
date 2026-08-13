@@ -1,0 +1,48 @@
+{
+  "include": [
+    ".",
+    "src"
+  ],
+
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "standard",
+
+  "venv": "venv",
+  "venvPath": ".devenv/state/",
+
+  "deprecateTypingAliases": true, // false
+  "strictListInference": true, // false
+  "strictSetInference": true, // false
+
+  "reportAssertAlwaysTrue": "error", // "warning"
+  "reportConstantRedefinition": "error", // "none"
+  "reportDeprecated": "error", // "none"
+  "reportDuplicateImport": "error", // "none"
+  "reportIncompatibleMethodOverride": "warning", // "error"
+  "reportIncompleteStub": "information", // "none"
+  "reportInconsistentConstructor": "error", // "none"
+  "reportInvalidStringEscapeSequence": "error", // "warning"
+  "reportInvalidStubStatement": "error", // "none"
+  "reportInvalidTypeVarUse": "error", // "warning"
+  "reportMatchNotExhaustive": "error", // "none"
+  "reportMissingModuleSource": "information", // "warning"
+  "reportMissingParameterType": "error", // "none"
+  "reportMissingTypeArgument": "error", // "none"
+  "reportPrivateImportUsage": "none", // "error"
+  "reportSelfClsParameterName": "error", // "warning"
+  "reportTypeCommentUsage": "error", // "none"
+  "reportUnnecessaryCast": "information", // "none"
+  "reportUnnecessaryComparison": "information", // "none"
+  "reportUnnecessaryContains": "information", // "none"
+  "reportUnsupportedDunderAll": "information", // "warning"
+  "reportUntypedBaseClass": "error", // "none"
+  "reportUntypedClassDecorator": "error", // "none"
+  "reportUntypedFunctionDecorator": "error", // "none"
+  "reportUntypedNamedTuple": "error", // "none"
+  "reportUnusedClass": "warning", // "none"
+  "reportUnusedExpression": "warning", // "none"
+  "reportUnusedFunction": "warning", // "none"
+  "reportUnusedImport": "warning", // "none"
+  "reportUnusedVariable": "warning", // "none"
+  "reportWildcardImportFromLibrary": "error" // "warning"
+}

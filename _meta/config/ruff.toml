@@ -1,0 +1,140 @@
+force-exclude     = true
+indent-width      = 4
+line-length       = 120
+respect-gitignore = true
+target-version    = "py313"
+# unsafe-fixes      = true
+
+exclude = [  ]
+
+[format]
+  docstring-code-format      = true
+  docstring-code-line-length = "dynamic"
+  indent-style               = "space"
+  line-ending                = "lf"
+  quote-style                = "single"
+  skip-magic-trailing-comma  = false
+
+[lint]
+  fixable   = [ "ALL" ]
+  select    = [ "ALL" ]
+  unfixable = [  ]
+
+  ignore = [
+    # ID       # NAME                              # REASON FOR DISABLING
+    # -------- # --------------------------------- # --------------------
+    "ANN002",  # missing-type-args                 # ANN002-ANN003: often annoying - almost never helpful
+    "ANN003",  # missing-type-kwargs               # -
+    "ANN401",  # any-type                          # `Any` is not *ideal*, but sometimes necessary
+    "BLE001",  # blind-except                      # `BaseException` fangen? Böse. `Exception`? Völlig in Ordnung...
+    "COM812",  # missing-trailing-comma            # redundant (enforced by formatter)
+    "COM819",  # prohibited-trailing-comma         # redundant (enforced by formatter)
+    "D100",    # undocumented-public-module        # D100-D107: preference (docstrings are usually added later)
+    "D101",    # undocumented-public-class         # -
+    "D102",    # undocumented-public-method        # -
+    "D103",    # undocumented-public-function      # -
+    "D104",    # undocumented-public-package       # -
+    "D105",    # undocumented-magic-method         # -
+    "D106",    # undocumented-public-nested-class  # -
+    "D107",    # undocumented-public-init          # -
+    "D202",    # blank-line-after-function         # rule removes blank lines between docstring and function body
+    "D203",    # incorrect-blank-line-before-class # rule adds blank line between class definition and docstring
+    "D206",    # docstring-tab-indentation         # D206-208: redundant (enforced by formatter)
+    "D207",    # under-indentation                 # -
+    "D208",    # over-indentation                  # -
+    "D213",    # multi-line-summary-second-line    # rule moves summary line to second physical line of docstring
+    "ERA001",  # commented-out-code                # harmless and likely intentional
+    "F401",    # unused-import                     # removes imports while working if saved and fix-on-save enabled
+    "FIX002",  # line-contains-todo                # the entire point is that the to-do indicates it is to be done
+    "INP001",  # implicit-namespace-package        # unhelpful - just complains about the lack of an `__init__.py`
+    "N817",    # camelcase-imported-as-acronym     # stylistic
+    "N818",    # error-suffix-on-exception-name    # stylistic
+    "PLC0414", # useless-import-alias              # usually intentional, rarely accidental
+    "PLC0415", # import-outside-top-level          # imports in functions are useful in multiple scenarios
+    "PLR2004", # magic-value-comparison            # rarely helpful, usually just annoying
+    "PLW0603", # global-statement                  # usually intentional, almost impossible to do accidentally
+    "PTH",     # flake8-use-pathlib                # pathlib is great, but we can use it at our own discretion
+    "PYI021",  # docstring-in-stub                 # actually kind of senseless - consider C extensions with only stubs
+    "S105",    # hardcoded-password-string         # doch
+    "S108",    # hardcoded-temp-file               # if this is how the system becomes compromised, it already was
+    "S110",    # try-except-pass                   # S110-112: "consider logging the exception" - consider it considered
+    "S112",    # try-except-continue               # -
+    "S311",    # suspicious-non-cryptographic-r... # unhelpful - reinforcing what should be obvious
+    "S601",    # paramiko-call                     # S601-S612: unhelpful - reinforcing what should be obvious
+    "S602",    # subprocess-popen-with-shell-eq... # -
+    "S603",    # subprocess-without-shell-equal... # -
+    "S604",    # call-with-shell-equals-true       # -
+    "S605",    # start-process-with-a-shell        # -
+    "S606",    # start-process-with-no-shell       # -
+    "S607",    # start-process-with-partial-path   # -
+    "S608",    # hardcoded-sql-expression          # -
+    "S609",    # unix-command-wildcard-injection   # -
+    "S610",    # django-extra                      # -
+    "S611",    # django-raw-sql                    # -
+    "S612",    # logging-config-insecure-listen    # -
+    "S701",    # jinja2-autoescape-false           # again: unhelpful, should be obvious; if done, it was intentional
+    "SIM102",  # collapsible-if                    # preference - readability (purely stylistic)
+    "SLF001",  # private-member-access             # unhelpful critique that offers nothing and just wants to shame you
+    "T201",    # print                             # doch
+    "T203",    # p-print                           # doch
+    "TD002",   # missing-todo-author               # there's only one developer
+    "TD003",   # missing-todo-link                 # there's only one developer; link where, localhost?
+  ]
+
+  [lint.per-file-ignores]
+    "*.pyi"    = [ "D404" ] # docstring-starts-with-this
+    "*compat*" = [ "UP" ]   # pyupgrade
+
+    "*codemod*" = [
+      # LibCST expects code to conform in a way which these rules forbid
+      "ARG002", # unused-method-argument
+      "N802",   # invalid-function-name
+    ]
+
+    "*test*" = [
+      "ANN001", # missing-type-function-argument
+      "ARG002", # unused-method-argument
+      "D",      # pydocstyle
+      "Q000",   # bad-quotes-inline-string
+      "S101",   # assert
+    ]
+
+    "__init__.py" = [
+      "F401", # unused-import
+      #  F403/5: no excuses - use this: https://github.com/asmeurer/removestar
+      # "F403", # undefined-local-with-import-star
+      # "F405", # undefined-local-with-import-star-usage
+    ]
+
+  [lint.flake8-unused-arguments]
+    ignore-variadic-names = true
+
+  [lint.flake8-annotations]
+    allow-star-arg-any = true
+
+  [lint.flake8-bugbear]
+    extend-immutable-calls = [  ]
+
+  [lint.flake8-quotes]
+    inline-quotes = "single"
+
+  [lint.isort]
+    known-first-party = [  ]
+
+  [lint.mccabe]
+    max-complexity = 30
+
+  [lint.pydocstyle]
+    convention            = "numpy"
+    ignore-var-parameters = true
+
+  [lint.pylint]
+    allow-magic-value-types = [ "float", "int", "str" ]
+    max-args                = 30
+    max-bool-expr           = 30
+    max-branches            = 30
+    max-locals              = 30
+    max-nested-blocks       = 10
+    max-positional-args     = 10
+    max-returns             = 30
+    max-statements          = 75

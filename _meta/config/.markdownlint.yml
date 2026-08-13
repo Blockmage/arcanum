@@ -1,0 +1,16 @@
+line-length:
+  line_length: 120
+  code_blocks: false
+  tables: false
+
+# MD033/no-inline-html
+MD033: false
+
+# MD041/first-line-heading/first-line-h1
+MD041: false
+
+# MD024/no-duplicate-heading
+MD024: {siblings_only: true}
+
+# MD046/code-block-style
+MD046: {style: "consistent"}

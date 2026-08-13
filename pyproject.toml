@@ -1,0 +1,87 @@
+[project]
+  description     = ""
+  name            = "Arcanum"
+  readme          = "README.md"
+  requires-python = ">=3.13"
+  version         = "2026.08.12"
+
+  authors = [
+    { email = "developer@blockmage.dev", name = "Blockmage Developers" },
+  ]
+
+  dependencies = [  ]
+
+[dependency-groups]
+  dev = [  ]
+
+# ------------------------------- build system ---------------------------------
+[build-system]
+  build-backend = "hatchling.build"
+  requires      = [ "hatchling" ]
+
+[tool.hatch.metadata]
+  allow-direct-references = true
+
+[tool.hatch.build]
+  dev-mode-dirs = [ ".", "src" ]
+
+# ------------------------------- tool: coverage -------------------------------
+[tool.coverage.report]
+  skip_empty = "true"
+
+  exclude_also = [
+    "@abstractmethod",
+    "\\.\\.\\.",
+    "class .*\\bProtocol\\):",
+    "def __repr__",
+    "def __str__",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "msg =.*",
+    "raise AssertionError",
+    "raise NotImplementedError",
+  ]
+
+[tool.coverage.html]
+  directory = "_meta/reports/coverage/html"
+
+[tool.coverage.json]
+  output = "_meta/reports/coverage/json/coverage.json"
+
+[tool.coverage.xml]
+  output = "_meta/reports/coverage/xml/coverage.xml"
+
+# -------------------------------- tool: pytest --------------------------------
+[tool.pytest.ini_options]
+  addopts = [
+    "--cov-report=html",
+    "--cov=arcanum",
+    "--import-mode=importlib",
+    "-s",
+    "-vv",
+  ]
+
+  python_files = [ "test_*.py" ]
+  testpaths    = [ "." ]
+
+  norecursedirs = [
+    ".devenv",
+    ".direnv",
+    ".git",
+    ".venv",
+    "data",
+    "submodules",
+  ]
+
+# ---------------------------------- tool: uv ----------------------------------
+[tool.uv]
+  compile-bytecode = true
+  managed          = true
+
+  [tool.uv.pip]
+    compile-bytecode = true
+
+  [tool.uv.workspace]
+    members = [  ]
+
+  [tool.uv.sources]

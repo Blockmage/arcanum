@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "editorconfig.editorconfig",
+    "emeraldwalk.runonsave",
+    "jnoortheen.nix-ide",
+    "mads-hartmann.bash-ide-vscode",
+    "ms-python.python",
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

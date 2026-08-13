@@ -1,0 +1,12 @@
+exclude: []
+include: []
+
+indent: 2
+
+doublestar: true
+gitignore_excludes: true
+
+formatter:
+  type: basic
+  line_ending: lf
+  retain_line_breaks_single: true

@@ -1,0 +1,17 @@
+version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[options]
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer-span = "P14D"
+
+[[package]]
+name = "arcanum"
+version = "2026.8.12"
+source = { editable = "." }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = []
