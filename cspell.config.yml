@@ -33,18 +33,34 @@ dictionaries:
   - software-tools
   - softwareTerms
 ignoreWords:
+  - aopen
   - cachix
+  - closefd
   - direnvrc
+  - ebit
+  - eibit
+  - fspath
+  - gibit
   - gnused
   - golangci
   - gopls
   - hujson
   - jnoortheen
+  - kbit
+  - kibit
+  - mbit
+  - mibit
+  - mult
   - nixd
   - nixpkgs
   - norecursedirs
   - numtide
+  - pbit
+  - pibit
   - runonsave
   - sema
   - taplo
+  - tbit
+  - tibit
+  - vfspath
 words: []
