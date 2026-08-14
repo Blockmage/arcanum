@@ -127,7 +127,7 @@ in {
               -path "*/target/release/*" -prune -o  \
               -iname "*test*.py" -print
             )"
-            [ "$_found" != "" ] && ".venv/bin/pytest"
+            [ "$_found" != "" ] && "$_pytest"
           fi'
         '';
       };

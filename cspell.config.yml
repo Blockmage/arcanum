@@ -35,6 +35,7 @@ dictionaries:
 ignoreWords:
   - acritical
   - activ
+  - adebug
   - aerror
   - aexception
   - ainfo
