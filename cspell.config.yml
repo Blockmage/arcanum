@@ -34,6 +34,7 @@ dictionaries:
   - softwareTerms
 ignoreWords:
   - acritical
+  - activ
   - aerror
   - aexception
   - ainfo
@@ -42,6 +43,7 @@ ignoreWords:
   - awith
   - cachix
   - closefd
+  - dhms
   - direnvrc
   - ebit
   - eibit
