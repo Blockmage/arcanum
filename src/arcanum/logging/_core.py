@@ -2,32 +2,35 @@ import logging
 import logging.config
 import os
 import sys
-import traceback
-from collections.abc import Callable, Iterator
 from io import TextIOWrapper
 from logging.handlers import RotatingFileHandler as _RotatingFileHandler
-from traceback import FrameSummary, format_exception
-from types import FrameType
+from pathlib import Path
+from traceback import format_exception
 from typing import Any
 
-import anyio
 import structlog
+from structlog import is_configured
 from structlog.dev import RichTracebackFormatter
-from structlog.stdlib import get_logger
+from structlog.stdlib import BoundLogger
+from structlog.stdlib import get_logger as _get_logger
 from structlog.typing import EventDict, Processor
 
-from arcanum.stdlib.path import Path
+_here = Path(__file__).resolve().parent
 
-_here: Path = Path(__file__).resolve().parent
-
-_logger_name: str = 'Arcanum'
-
-if (_log_dir_from_env := os.getenv('LOG_DIR', '')).strip():
-    _log_dir: Path = Path(_log_dir_from_env)
-elif _log_dir_from_env := os.getenv('WORKSPACE_ROOT', '').strip():
-    _log_dir: Path = Path(_log_dir_from_env) / '_meta' / 'log'
+_wsp_root_fallback = _here.parents[2]
+if _wsp_root_env := os.getenv('WORKSPACE_ROOT', '').strip():
+    try:
+        _wsp_root = Path(_wsp_root_env).resolve(strict=True)
+    except Exception:
+        _wsp_root = _wsp_root_fallback
 else:
-    _log_dir: Path = _here.parent.parent / '_meta' / 'log'
+    _wsp_root = _wsp_root_fallback
+
+
+# --- Defaults
+_LOG_DIR: Path = _wsp_root / '_meta' / 'log'
+_LOG_LEVEL: int = logging.INFO
+_LOGGER_NAME: str = 'arcanum'
 
 
 class RotatingFileHandler(_RotatingFileHandler):
@@ -37,38 +40,72 @@ class RotatingFileHandler(_RotatingFileHandler):
         return super()._open()
 
 
-def _is_same_frame(frame: FrameType, target: FrameSummary) -> bool:
-    return frame.f_code.co_filename == target.filename and frame.f_code.co_name == target.name
+class LoggingMixin:
+    def __init__(self, logger_name: str = '', *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        if not logger_name.strip():
+            logger_name = _get_cfg_logger_name()
+        if logger_name is _LOGGER_NAME:
+            self._logger_name = f'{logger_name}.{self.__class__.__name__}'
+        else:
+            self._logger_name = logger_name
+
+        self._logger = get_logger(self._logger_name)
+
+    @property
+    def logger(self) -> structlog.stdlib.BoundLogger:
+        return self._logger
+
+    def log_step_start(self, step_name: str, **kwargs: Any) -> None:
+        self._logger = self._logger.bind(**kwargs)
+        self._logger.info('begin workflow step', step=step_name)
+
+    def log_step_complete(self, step_name: str, **kwargs: Any) -> None:
+        self._logger.info('complete workflow step', step=step_name, status='SUCCESS')
+        self._logger = self._logger.try_unbind(*kwargs.keys())
+
+    def log_step_error(self, step_name: str, exc: Exception, **kwargs: Any) -> None:
+        self._logger.exception('failed workflow step', step=step_name, exc_info=exc, status='ERROR', **kwargs)
+
+    def log_step_warning(self, step_name: str, msg: str, **kwargs: Any) -> None:
+        self._logger.warning(msg, step=step_name, **kwargs)
 
 
-def _walk_frames(
-    predicate: Callable[[FrameType, FrameSummary], bool],
-    target: FrameSummary,
-    *,
-    start_frame: FrameType | None = None,
-) -> Iterator[FrameType]:
-    try:
-        current_frame = start_frame if start_frame is not None else sys._getframe(1)
-        while current_frame is not None:
-            if not predicate(current_frame, target):
-                yield current_frame
-            current_frame = current_frame.f_back
-    except Exception:
-        return
+def _get_cfg_logger_name(*, default: str = _LOGGER_NAME) -> str:
+    if env_name := os.getenv('LOGGER_NAME', '').strip():
+        return env_name
+    return default
 
 
-def _get_frame_locals(target_frame: FrameSummary) -> dict[str, Any]:
-    result = {}
-    try:
-        if matching_frame := next(
-            (frame for frame in _walk_frames(lambda f, t: not _is_same_frame(f, t), target_frame)),
-            None,
-        ):
-            result = matching_frame.f_locals
-    except Exception:
-        return result
-    else:
-        return result
+def _get_cfg_log_level(*, default: int = _LOG_LEVEL) -> int:
+    if env_lvl := os.getenv('LOG_LEVEL', '').strip():
+        env_lvl = env_lvl.upper()
+        if mapped := {
+            'CRITICAL': logging.CRITICAL,
+            'CRIT': logging.CRITICAL,
+            'FATAL': logging.CRITICAL,
+            'ERROR': logging.ERROR,
+            'ERR': logging.ERROR,
+            'WARNING': logging.WARNING,
+            'WARN': logging.WARNING,
+            'INFO': logging.INFO,
+            'DEBUG': logging.DEBUG,
+        }.get(env_lvl):
+            return mapped
+    return default
+
+
+def _get_cfg_log_dir(*, default: Path = _LOG_DIR) -> Path:
+    if env_dir := os.getenv('LOG_DIR', '').strip():
+        try:
+            env_path = Path(env_dir).resolve()
+            env_path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            return _LOG_DIR
+        else:
+            return env_path
+    return default
 
 
 def _format_exception_chain(exc: BaseException | None) -> dict[str, Any]:
@@ -166,21 +203,21 @@ def _configure_stdlib_logging(time_fmt_str: str = '%Y-%m-%d %H:%M:%S') -> None:
             },
             'handlers': {
                 'default': {
-                    'level': logging.INFO,
+                    'level': _get_cfg_log_level(),
                     'class': 'logging.StreamHandler',
                     'formatter': 'colored',
                 },
                 'file': {
-                    'level': logging.INFO,
+                    'level': _get_cfg_log_level(),
                     'class': RotatingFileHandler,
-                    'filename': _log_dir / 'arcanum.log',
+                    'filename': _get_cfg_log_dir() / f'{_get_cfg_logger_name()}.log.jsonl',
                     'formatter': 'json',
                 },
             },
             'loggers': {
                 '': {
                     'handlers': ['default', 'file'],
-                    'level': logging.INFO,
+                    'level': _get_cfg_log_level(),
                     'propagate': True,
                 },
             },
@@ -230,115 +267,7 @@ def configure_logging() -> None:
     _configure_structlog()
 
 
-def _demo_exception_handling() -> None:
-    def inner_function(x: Any, y: Any) -> Any:
-        current_frame = sys._getframe()
-        frame_summary = traceback.FrameSummary(
-            current_frame.f_code.co_filename, current_frame.f_lineno, current_frame.f_code.co_name, line=None
-        )
-
-        print('=' * 80)
-        print(f'         FRAME LOCALS : {current_frame.f_locals}')
-        print(f'       FRAME FILENAME : {current_frame.f_code.co_filename}')
-        print(f'         FRAME LINENO : {current_frame.f_lineno}')
-        print(f'FRAMESUMMARY FILENAME : {frame_summary.filename}')
-        print(f'  FRAMESUMMARY LINENO : {frame_summary.lineno}')
-        print(f'        IS SAME FRAME : {_is_same_frame(current_frame, frame_summary)}')
-        _get_frame_locals(frame_summary)
-        print('=' * 80)
-
-        return x / y
-
-    def middle_function() -> Any:
-        try:
-            return inner_function(10, 0)
-        except ZeroDivisionError as e:
-            msg = 'Something went wrong in processing'
-            raise ValueError(msg) from e
-
-    def outer_function() -> Any:
-        try:
-            return middle_function()
-        except ValueError as e:
-            msg = 'Top level error occurred'
-            raise RuntimeError(msg) from e
-
-    try:
-        outer_function()
-    except Exception as e:
-        if e.__cause__ and e.__cause__.__cause__:
-            _format_exception_chain(e.__cause__.__cause__)
-        tb = e.__traceback__
-        while tb:
-            frame_summary = traceback.extract_tb(tb)[0] if traceback.extract_tb(tb) else None
-            if frame_summary:
-                _get_frame_locals(frame_summary)
-
-            tb = tb.tb_next
-
-    inner_function(10, 0)
-
-
-class LoggingMixin:
-    def __init__(self, logger_name: str = _logger_name, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._logger_name = logger_name
-
-        if logger_name is _logger_name:
-            self._logger_name = f'{logger_name}.{self.__class__.__name__}'
-
-        self._logger = get_logger(self._logger_name)
-
-    @property
-    def logger(self) -> structlog.stdlib.BoundLogger:
-        return self._logger
-
-    def log_step_start(self, step_name: str, **kwargs: Any) -> None:
-        self._logger = self._logger.bind(**kwargs)
-        self._logger.info('begin workflow step', step=step_name)
-
-    def log_step_complete(self, step_name: str, **kwargs: Any) -> None:
-        self._logger.info('complete workflow step', step=step_name, status='SUCCESS')
-        self._logger = self._logger.try_unbind(*kwargs.keys())
-
-    def log_step_error(self, step_name: str, exc: Exception, **kwargs: Any) -> None:
-        self._logger.exception('failed workflow step', step=step_name, exc_info=exc, status='ERROR', **kwargs)
-
-    def log_step_warning(self, step_name: str, msg: str, **kwargs: Any) -> None:
-        self._logger.warning(msg, step=step_name, **kwargs)
-
-
-async def _demo_async_logging() -> None:
-    logger = get_logger(f'{_logger_name}.DemoAsyncLogger')
-
-    await logger.ainfo('This in an async informational message', some_dict={'a': 'value'})
-    await logger.awarning('This is an async warning message', some_list=[1, '2', 'three'])
-    await logger.aerror('This is an async error message', some_tuple=(1, '2', 'three'))
-    await logger.acritical('This is an async critical message', some_set=set({'a', 'b', 'c'}))
-
-    try:
-        msg = 'Exception occurred while trying to raise an exception asynchronously'
-        raise Exception(msg)  # noqa: TRY002, TRY301
-    except Exception as exc:
-        await logger.aexception('Exception occurred asynchronously', exc_info=exc)
-
-
-def _demo_sync_logging() -> None:
-    logger = get_logger(f'{_logger_name}.DemoSyncLogger')
-
-    logger.info('This in an informational message', some_dict={'a': 'value'})
-    logger.warning('This is a warning message', some_list=[1, '2', 'three'])
-    logger.error('This is an error message', some_tuple=(1, '2', 'three'))
-    logger.critical('This is a critical message', some_set=set({'a', 'b', 'c'}))
-
-    try:
-        msg = 'Exception occurred while trying to raise an exception synchronously'
-        raise Exception(msg)  # noqa: TRY002, TRY301
-    except Exception as exc:
-        logger.exception('Exception occurred', exc_info=exc)
-
-
-if __name__ == '__main__':
-    _demo_sync_logging()
-    anyio.run(_demo_async_logging)
-    _demo_exception_handling()
+def get_logger(name: str = '') -> BoundLogger:
+    if not is_configured():
+        configure_logging()
+    return _get_logger(name)

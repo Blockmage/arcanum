@@ -8,7 +8,12 @@ from unittest import mock
 
 import pytest
 
-from arcanum.logging import adebug_log, awith_logging, debug_log, with_logging
+from arcanum.logging import (
+    adebug_log,
+    awith_logging,
+    debug_log,
+    with_logging,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Coroutine

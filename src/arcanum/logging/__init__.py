@@ -12,8 +12,6 @@ from ._debug import awith_logging as awith_logging
 from ._debug import debug_log as debug_log
 from ._debug import with_logging as with_logging
 
-configure_logging()
-
 __all__ = (
     'ExcInfoT',
     'LogRecordT',
