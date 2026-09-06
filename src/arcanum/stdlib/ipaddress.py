@@ -6,12 +6,14 @@ from ipaddress import (
     IPv6Address,
     IPv6Interface,
     IPv6Network,
+    _BaseAddress,
+    _BaseNetwork,
     collapse_addresses,
     ip_address,
     ip_interface,
     ip_network,
 )
-from typing import Any, Literal, Self, cast
+from typing import Any, Literal
 
 # ruff: noqa: D205 (missing-blank-line-after-summary)
 
@@ -81,13 +83,6 @@ class IPAddress(_IPObject):
 
     __slots__ = ('_address',)
 
-    @classmethod
-    def __msgspec_decode__(cls, obj: Any) -> Self:
-        return cls(obj)
-
-    def __msgspec_encode__(self) -> str:
-        return str(self)
-
     def __init__(self, address: RawIPAddress, /) -> None:
         """Initialize an instance of `IPAddress`.
 
@@ -101,6 +96,14 @@ class IPAddress(_IPObject):
         ------
         ipaddress.AddressValueError
             If `address` is not a valid IPv4 or IPv6 address.
+
+        Notes
+        -----
+        Type `RawIPAddress` is defined as follows:
+
+        ```python
+        type RawIPAddress = int | str | bytes | ipaddress.IPv4Address | ipaddress.IPv6Address
+        ```
         """
         self._address = ip_address(address)
 
@@ -119,60 +122,51 @@ class IPAddress(_IPObject):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, IPAddress):
             return self._address == other._address
-        if isinstance(other, (IPv4Address, IPv6Address)):
+        if isinstance(other, _BaseAddress):
             return self._address == other
-        if isinstance(other, (str, int, bytes)):
-            try:
-                return self._address == ip_address(other)
-            except (ValueError, TypeError):
-                return False
         return NotImplemented
 
     def __lt__(self, other: object) -> bool:
         if isinstance(other, IPAddress):
-            return self._sort_key() < other._sort_key()
-        if isinstance(other, (IPv4Address, IPv6Address)):
-            return self._sort_key() < (other.version, int(other))
-        return NotImplemented
+            candidate = other._address
+        elif isinstance(other, (IPv4Address, IPv6Address)) or (
+            isinstance(other, _BaseAddress) and isinstance(other, (IPv4Address, IPv6Address))
+        ):
+            candidate = other
+        else:
+            return NotImplemented
 
-    def __le__(self, other: object) -> bool:
-        if isinstance(other, IPAddress):
-            return self._sort_key() <= other._sort_key()
-        if isinstance(other, (IPv4Address, IPv6Address)):
-            return self._sort_key() <= (other.version, int(other))
-        return NotImplemented
+        if isinstance(self._address, IPv4Address):
+            if not isinstance(candidate, IPv4Address):
+                msg = f'Cannot compare `ipaddress.IPv4Address` with {type(candidate)!r}'
+                raise TypeError(msg)
+            return self._address < candidate
 
-    def __gt__(self, other: object) -> bool:
-        if isinstance(other, IPAddress):
-            return self._sort_key() > other._sort_key()
-        if isinstance(other, (IPv4Address, IPv6Address)):
-            return self._sort_key() > (other.version, int(other))
-        return NotImplemented
+        if isinstance(self._address, IPv6Address):
+            if not isinstance(candidate, IPv6Address):
+                msg = f'Cannot compare `ipaddress.IPv6Address` with {type(candidate)!r}'
+                raise TypeError(msg)
+            return self._address < candidate
 
-    def __ge__(self, other: object) -> bool:
-        if isinstance(other, IPAddress):
-            return self._sort_key() >= other._sort_key()
-        if isinstance(other, (IPv4Address, IPv6Address)):
-            return self._sort_key() >= (other.version, int(other))
-        return NotImplemented
+        msg = f'Unsupported address type: {type(self._address)!r}'
+        raise TypeError(msg)
 
-    def _sort_key(self) -> tuple[int, int]:
-        """Return a version-prefixed integer for cross-version comparison."""
-        return (self._address.version, int(self._address))
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._address, name)
 
-    def unwrap(self) -> IPv4Address | IPv6Address:
+    def unwrap(self) -> 'IPv4Address | IPv6Address':
         """Return the underlying `ipaddress.IPv4Address` or `ipaddress.IPv6Address`."""
-        return self._address
-
-    @property
-    def address(self) -> IPv4Address | IPv6Address:
-        """An instance of either `ipaddress.IPv4Address` or `ipaddress.IPv6Address`."""
         return self._address
 
     @property
     def max_prefixlen(self) -> Literal[32, 128]:
         """Either `32` (for IPv4), or `128` (for IPv6)."""
         return self._address.max_prefixlen
+
+    @property
+    def address(self) -> 'IPv4Address | IPv6Address':
+        """An instance of either `ipaddress.IPv4Address` or `ipaddress.IPv6Address`."""
+        return self._address
 
     @property
     def version(self) -> Literal[4, 6]:
@@ -227,8 +221,8 @@ class IPAddress(_IPObject):
 
         Notes
         -----
-        - See [**RFC 3171**](https://datatracker.ietf.org/doc/html/rfc3171.html) (for IPv4) or
-          [**RFC 2373**](https://datatracker.ietf.org/doc/html/rfc2373.html) (for IPv6).
+        - See [**RFC 3171**](https://datatracker.ietf.org/doc/html/rfc3171.html) (for IPv4) or [**RFC 2373**\
+          ](https://datatracker.ietf.org/doc/html/rfc2373.html) (for IPv6).
         """
         return self._address.is_multicast
 
@@ -238,21 +232,22 @@ class IPAddress(_IPObject):
 
         Notes
         -----
-        - The site-local address space has been deprecated by
-          [**RFC 3879**](https://datatracker.ietf.org/doc/html/rfc3879.html).
-
-          Use `is_private` to test if this address is in the space of unique local addresses as defined by
-          [**RFC 4193**](https://datatracker.ietf.org/doc/html/rfc4193.html).
+        - The site-local address space has been deprecated by [**RFC 3879**\
+          ](https://datatracker.ietf.org/doc/html/rfc3879.html) RFC. Use `is_private` to test if this address is in the
+          space of unique local addresses as defined by [**RFC 4193**\
+          ](https://datatracker.ietf.org/doc/html/rfc4193.html).
         """
-        return isinstance(self._address, IPv6Address) and self._address.is_site_local
+        if isinstance(self._address, IPv6Address):
+            return self._address.is_site_local
+        return False
 
     @property
     def is_private(self) -> bool:
         """`True` if the address is defined as *not globally reachable* by the
-        [**IANA IPv4 Special Registry**](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml)
-        (for IPv4) or
-        [**IANA IPv6 Special Registry**](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml)
-        (for IPv6).
+        [**IANA IPv4 Special Registry**\
+        ](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml) (for IPv4) or
+        [**IANA IPv6 Special Registry**\
+        ](https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml) (for IPv6).
 
         Notes
         -----
@@ -283,10 +278,10 @@ class IPAddress(_IPObject):
     @property
     def is_global(self) -> bool:
         """`True` if the address is defined as *globally reachable* by the
-        [**IANA IPv4 Special Registry**](https://iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml)
-        (for IPv4) or
-        [**IANA IPv6 Special Registry**](https://iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml)
-        (for IPv6).
+        [**IANA IPv4 Special Registry**\
+        ](https://iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml) (for IPv4) or
+        [**IANA IPv6 Special Registry**\
+        ](https://iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml) (for IPv6).
 
         Notes
         -----
@@ -307,11 +302,11 @@ class IPAddress(_IPObject):
 
         Notes
         -----
-        - For IPv4, this is only `240.0.0.0/4` (the only `Reserved` address block).
-        - For IPv4, `is_reserved` is **not** related to the address block value of the `Reserved-by-Protocol` column in
-          the [**IANA IPv4 Special Registry**](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml).
+        - For IPv4, this is only `240.0.0.0/4`, the `Reserved` address block.
         - For IPv6, this is all addresses [**allocated as `Reserved`**](https://www.iana.org/assignments/ipv6-address-space/ipv6-address-space.xhtml)
           by the IETF for future use.
+        - For IPv4, `is_reserved` is **not** related to the address block value of the `Reserved-by-Protocol` column in
+          the [**IANA IPv4 Special Registry**](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml).
         - **CAUTION:** For IPv6, `fec0::/10`, a former `Site-Local`-scoped address prefix, is currently excluded from
           that list (see `is_site_local` and [**RFC 3879**](https://datatracker.ietf.org/doc/html/rfc3879.html)).
         """
@@ -345,7 +340,7 @@ class IPAddress(_IPObject):
         return self._address.is_unspecified
 
     @property
-    def ipv6_mapped(self) -> 'IPAddress | None':
+    def ipv6_mapped(self) -> IPv6Address | None:
         """If this address is an IPv4 address, this property will report the IPv6-mapped representation of the address;
         otherwise, this property will be `None`.
 
@@ -354,10 +349,10 @@ class IPAddress(_IPObject):
         - See [**RFC 4291 - IP Version 6 Addressing Architecture**](https://datatracker.ietf.org/doc/html/rfc4291.html).
         """
         mapped = getattr(self._address, 'ipv6_mapped', None)
-        return IPAddress(mapped) if isinstance(mapped, IPv6Address) else None
+        return mapped if isinstance(mapped, IPv6Address) else None
 
     @property
-    def ipv4_mapped(self) -> 'IPAddress | None':
+    def ipv4_mapped(self) -> IPv4Address | None:
         """If this address is an IPv6 address which appears to be a mapped IPv4 address (an address starting with
         `::FFFF/96`), this property will report the embedded IPv4 address; otherwise, this property will be `None`.
 
@@ -366,10 +361,10 @@ class IPAddress(_IPObject):
         - See [**RFC 4291 - IP Version 6 Addressing Architecture**](https://datatracker.ietf.org/doc/html/rfc4291.html).
         """
         mapped = getattr(self._address, 'ipv4_mapped', None)
-        return IPAddress(mapped) if isinstance(mapped, IPv4Address) else None
+        return mapped if isinstance(mapped, IPv4Address) else None
 
     @property
-    def teredo(self) -> 'tuple[IPAddress, IPAddress] | None':
+    def teredo(self) -> tuple[IPv4Address, IPv4Address] | None:
         """If this address is an IPv6 address which appears to be a Teredo address (an address starting with
         `2001::/32`), this property will report the embedded `(server, client)` IPv4 address pair; otherwise, this
         property will be `None`.
@@ -378,13 +373,10 @@ class IPAddress(_IPObject):
         -----
         - See [**RFC 4380 - Teredo: Tunneling IPv6 over UDP through Network Address Translations (NATs)**](https://datatracker.ietf.org/doc/html/rfc4380.html)
         """
-        val = getattr(self._address, 'teredo', None)
-        if isinstance(val, tuple) and len(val) == 2:
-            return (IPAddress(val[0]), IPAddress(val[1]))
-        return None
+        return getattr(self._address, 'teredo', None)
 
     @property
-    def sixtofour(self) -> 'IPAddress | None':
+    def sixtofour(self) -> IPv4Address | None:
         """If this address is an IPv6 address which appears to be a `6to4` address (an address starting with
         `2002::/16`), this property will report the embedded IPv4 address; otherwise, this property will be `None`.
 
@@ -392,8 +384,7 @@ class IPAddress(_IPObject):
         -----
         - See [**RFC 3056 - Connection of IPv6 Domains via IPv4 Clouds**](https://datatracker.ietf.org/doc/html/rfc3056.html)
         """
-        val = getattr(self._address, 'sixtofour', None)
-        return IPAddress(val) if isinstance(val, IPv4Address) else None
+        return getattr(self._address, 'sixtofour', None)
 
     @property
     def scope_id(self) -> str | None:
@@ -406,190 +397,12 @@ class IPAddress(_IPObject):
         """
         return getattr(self._address, 'scope_id', None)
 
-
-class IPInterface(_IPObject):
-    """General-purpose IP interface wrapper.
-
-    Unifies `ipaddress.IPv4Interface` and `ipaddress.IPv6Interface` to a single type.
-    """
-
-    __slots__ = ('_interface',)
-
     @classmethod
-    def __msgspec_decode__(cls, obj: Any) -> Self:
-        return cls(obj)
+    def __msgspec_decode__(cls, obj: Any) -> 'IPAddress':
+        return IPAddress(obj)
 
     def __msgspec_encode__(self) -> str:
         return str(self)
-
-    def __init__(self, address: RawIPAddress | RawNetworkPart | tuple[RawIPAddress] | tuple[RawIPAddress, int]) -> None:
-        """Initialize an instance of `IPInterface`.
-
-        Parameters
-        ----------
-        address : RawIPAddress | RawNetworkPart | tuple[RawIPAddress] | tuple[RawIPAddress, int]
-            IP interface address. Will be coerced into the appropriate `ipaddress.IPv4Interface` or
-            `ipaddress.IPv6Interface` object instance by the class internally.
-
-        Raises
-        ------
-        ipaddress.AddressValueError
-            If `address` is not a valid IPv4 or IPv6 interface.
-        ipaddress.NetmaskValueError
-            If the netmask is invalid.
-        """
-        self._interface = ip_interface(address)
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self._interface.with_prefixlen!s})'
-
-    def __str__(self) -> str:
-        return str(self._interface)
-
-    def __hash__(self) -> int:
-        return hash(self._interface)
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, IPInterface):
-            return self._interface == other._interface
-        if isinstance(other, (IPv4Interface, IPv6Interface)):
-            return self._interface == other
-        if isinstance(other, (str, int, bytes, tuple)):
-            try:
-                return self._interface == ip_interface(other)
-            except (ValueError, TypeError):
-                return False
-        return NotImplemented
-
-    def __lt__(self, other: object) -> bool:
-        if isinstance(other, IPInterface):
-            return self._sort_key() < other._sort_key()
-        if isinstance(other, (IPv4Interface, IPv6Interface)):
-            return self._sort_key() < (other.version, int(other.ip), other.network.prefixlen)
-        return NotImplemented
-
-    def __le__(self, other: object) -> bool:
-        if isinstance(other, IPInterface):
-            return self._sort_key() <= other._sort_key()
-        if isinstance(other, (IPv4Interface, IPv6Interface)):
-            return self._sort_key() <= (other.version, int(other.ip), other.network.prefixlen)
-        return NotImplemented
-
-    def __gt__(self, other: object) -> bool:
-        if isinstance(other, IPInterface):
-            return self._sort_key() > other._sort_key()
-        if isinstance(other, (IPv4Interface, IPv6Interface)):
-            return self._sort_key() > (other.version, int(other.ip), other.network.prefixlen)
-        return NotImplemented
-
-    def __ge__(self, other: object) -> bool:
-        if isinstance(other, IPInterface):
-            return self._sort_key() >= other._sort_key()
-        if isinstance(other, (IPv4Interface, IPv6Interface)):
-            return self._sort_key() >= (other.version, int(other.ip), other.network.prefixlen)
-        return NotImplemented
-
-    def _sort_key(self) -> tuple[int, int, int]:
-        """Return a sort key: (version, address_int, prefixlen)."""
-        return (self._interface.version, int(self._interface.ip), self._interface.network.prefixlen)
-
-    def unwrap(self) -> IPv4Interface | IPv6Interface:
-        """Return the underlying `IPv4Interface` or `IPv6Interface`."""
-        return self._interface
-
-    @property
-    def interface(self) -> IPv4Interface | IPv6Interface:
-        """An instance of either `IPv4Interface` or `IPv6Interface`."""
-        return self._interface
-
-    @property
-    def ip(self) -> IPAddress:
-        """IP address of this interface."""
-        return IPAddress(self._interface.ip)
-
-    @property
-    def network(self) -> 'IPNetwork':
-        """Network of this interface."""
-        return IPNetwork(self._interface.network)
-
-    @property
-    def version(self) -> Literal[4, 6]:
-        """IP version (either `4` or `6`)."""
-        return self._interface.version
-
-    @property
-    def packed(self) -> bytes:
-        """Binary representation of the address.
-
-        This is a `bytes` object of `4` bytes length for IPv4, or `16` bytes length for IPv6, with the most significant
-        octet first.
-        """
-        return self._interface.ip.packed
-
-    @property
-    def is_ipv4(self) -> bool:
-        """`True` if the wrapped interface is an IPv4 interface."""
-        return self.version == 4
-
-    @property
-    def is_ipv6(self) -> bool:
-        """`True` if the wrapped interface is an IPv6 interface."""
-        return self.version == 6
-
-    @property
-    def hostmask(self) -> IPAddress:
-        """Hostmask of this interface."""
-        return IPAddress(self._interface.hostmask)
-
-    @property
-    def with_prefixlen(self) -> str:
-        """String representation of the interface with prefix length."""
-        return self._interface.with_prefixlen
-
-    @property
-    def with_netmask(self) -> str:
-        """String representation of the interface with netmask."""
-        return self._interface.with_netmask
-
-    @property
-    def with_hostmask(self) -> str:
-        """String representation of the interface with hostmask."""
-        return self._interface.with_hostmask
-
-    @property
-    def is_multicast(self) -> bool:
-        """`True` if the interface's network is reserved for multicast use."""
-        return self._interface.is_multicast
-
-    @property
-    def is_private(self) -> bool:
-        """`True` if the interface's network is defined as *not globally reachable*."""
-        return self._interface.is_private
-
-    @property
-    def is_global(self) -> bool:
-        """`True` if the interface's network is defined as *globally reachable*."""
-        return self._interface.is_global
-
-    @property
-    def is_reserved(self) -> bool:
-        """`True` if the interface's network is noted as reserved by the IETF."""
-        return self._interface.is_reserved
-
-    @property
-    def is_loopback(self) -> bool:
-        """`True` if this is a loopback interface's network."""
-        return self._interface.is_loopback
-
-    @property
-    def is_link_local(self) -> bool:
-        """`True` if the interface's network falls within the link-local scope."""
-        return self._interface.is_link_local
-
-    @property
-    def is_unspecified(self) -> bool:
-        """`True` if the interface's network is unspecified."""
-        return self._interface.is_unspecified
 
 
 class IPNetwork(_IPObject):
@@ -599,13 +412,6 @@ class IPNetwork(_IPObject):
     """
 
     __slots__ = ('_network',)
-
-    @classmethod
-    def __msgspec_decode__(cls, obj: Any) -> Self:
-        return cls(obj)
-
-    def __msgspec_encode__(self) -> str:
-        return str(self)
 
     def __init__(
         self,
@@ -629,6 +435,17 @@ class IPNetwork(_IPObject):
             If `address` is not a valid IPv4 or IPv6 network.
         ipaddress.NetmaskValueError
             If the netmask is invalid.
+
+        Notes
+        -----
+        Types `RawIPAddress` and `RawNetworkPart` are defined as follows:
+
+        ```python
+        type RawIPAddress = int | str | bytes | ipaddress.IPv4Address | ipaddress.IPv6Address
+        type RawNetworkPart = (
+            ipaddress.IPv4Network | ipaddress.IPv6Network | ipaddress.IPv4Interface | ipaddress.IPv6Interface
+        )
+        ```
         """
         self._network = ip_network(address, strict=strict)
 
@@ -644,58 +461,47 @@ class IPNetwork(_IPObject):
     def __eq__(self, other: object) -> bool:
         if isinstance(other, IPNetwork):
             return self._network == other._network
-        if isinstance(other, (IPv4Network, IPv6Network)):
+        if isinstance(other, _BaseNetwork):
             return self._network == other
-        if isinstance(other, (str, int, bytes, tuple, IPv4Interface, IPv6Interface)):
-            try:
-                return self._network == ip_network(other)
-            except (ValueError, TypeError):
-                return False
         return NotImplemented
 
     def __lt__(self, other: object) -> bool:
         if isinstance(other, IPNetwork):
-            return self._sort_key() < other._sort_key()
-        if isinstance(other, (IPv4Network, IPv6Network)):
-            return self._sort_key() < (other.version, int(other.network_address), other.prefixlen)
-        return NotImplemented
+            candidate = other._network
+        elif isinstance(other, (IPv4Network, IPv6Network)) or (
+            isinstance(other, _BaseNetwork) and isinstance(other, (IPv4Network, IPv6Network))
+        ):
+            candidate = other
+        else:
+            return NotImplemented
 
-    def __le__(self, other: object) -> bool:
-        if isinstance(other, IPNetwork):
-            return self._sort_key() <= other._sort_key()
-        if isinstance(other, (IPv4Network, IPv6Network)):
-            return self._sort_key() <= (other.version, int(other.network_address), other.prefixlen)
-        return NotImplemented
+        if isinstance(self._network, IPv4Network):
+            if not isinstance(candidate, IPv4Network):
+                msg = f'Cannot compare `ipaddress.IPv4Network` with {type(candidate)!r}'
+                raise TypeError(msg)
+            return self._network < candidate
 
-    def __gt__(self, other: object) -> bool:
-        if isinstance(other, IPNetwork):
-            return self._sort_key() > other._sort_key()
-        if isinstance(other, (IPv4Network, IPv6Network)):
-            return self._sort_key() > (other.version, int(other.network_address), other.prefixlen)
-        return NotImplemented
+        if isinstance(self._network, IPv6Network):
+            if not isinstance(candidate, IPv6Network):
+                msg = f'Cannot compare `ipaddress.IPv6Network` with {type(candidate)!r}'
+                raise TypeError(msg)
+            return self._network < candidate
 
-    def __ge__(self, other: object) -> bool:
-        if isinstance(other, IPNetwork):
-            return self._sort_key() >= other._sort_key()
-        if isinstance(other, (IPv4Network, IPv6Network)):
-            return self._sort_key() >= (other.version, int(other.network_address), other.prefixlen)
-        return NotImplemented
+        msg = f'Unsupported network type: {type(self._network)!r}'
+        raise TypeError(msg)
 
     def __contains__(self, other: object) -> bool:
-        if isinstance(other, (IPAddress, IPNetwork)):
-            other = other.unwrap()
-        try:
+        if isinstance(other, IPAddress):
+            return other.unwrap() in self._network
+        if isinstance(other, IPNetwork):
+            return other.unwrap() in self._network
+        if isinstance(other, (_BaseAddress, _BaseNetwork)):
             return other in self._network
-        except (TypeError, ValueError):
-            return False
+        return False
 
     def __iter__(self) -> Iterator[IPAddress]:
         for ip in self._network:
             yield IPAddress(ip)
-
-    def _sort_key(self) -> tuple[int, int, int]:
-        """Return a sort key: (version, network_address_int, prefixlen)."""
-        return (self._network.version, int(self._network.network_address), self._network.prefixlen)
 
     def hosts(self) -> Iterator[IPAddress]:
         """Iterate over the usable hosts within this network.
@@ -762,18 +568,33 @@ class IPNetwork(_IPObject):
             If `other` is not an `IPNetwork`, `ipaddress.IPv4Network`, or `ipaddress.IPv6Network` object instance, or if
             IP versions are mixed.
         """
-        candidate = other.unwrap() if isinstance(other, IPNetwork) else other
-        if self._network.version == 4 and candidate.version == 4:
-            this, that = cast('IPv4Network', self._network), cast('IPv4Network', candidate)
-            for net in this.address_exclude(that):
+        candidate: IPv4Network | IPv6Network
+        if isinstance(other, IPNetwork):
+            candidate = other.unwrap()
+        elif isinstance(other, (IPv4Network, IPv6Network)):
+            candidate = other
+
+        base = self._network
+        if isinstance(base, IPv4Network):
+            if not isinstance(candidate, IPv4Network):
+                msg = f'Cannot compare `ipaddress.IPv4Network`, with {type(candidate)!r}'
+                raise TypeError(msg)
+            candidate_v4: IPv4Network = candidate
+            for net in base.address_exclude(candidate_v4):
                 yield IPNetwork(net)
-        elif self._network.version == 6 and candidate.version == 6:
-            this, that = cast('IPv6Network', self._network), cast('IPv6Network', candidate)
-            for net in this.address_exclude(that):
+            return
+
+        if isinstance(base, IPv6Network):
+            if not isinstance(candidate, IPv6Network):
+                msg = f'Cannot compare `ipaddress.IPv6Network`, with {type(candidate)!r}'
+                raise TypeError(msg)
+            candidate_v6: IPv6Network = candidate
+            for net in base.address_exclude(candidate_v6):
                 yield IPNetwork(net)
-        else:
-            msg = f'IPv{self.version} and IPv{candidate.version} cannot be mixed'
-            raise TypeError(msg)
+            return
+
+        msg = f'Unsupported network type: {type(base)!r}'
+        raise TypeError(msg)
 
     def collapse(self, *others: 'IPNetwork | IPv4Network | IPv6Network') -> Iterator['IPNetwork']:
         """Collapse a list of IP networks into the smallest possible list of CIDR networks.
@@ -793,19 +614,36 @@ class IPNetwork(_IPObject):
         TypeError
             If IP versions are mixed.
         """
-        operands = [self._network] + [entry.unwrap() if isinstance(entry, IPNetwork) else entry for entry in others]
-        for net in collapse_addresses(cast('Any', operands)):
-            yield IPNetwork(net)
+        if isinstance(self._network, IPv4Network):
+            operands: list[IPv4Network] = [self._network]
+            for entry in others:
+                inner = entry.unwrap() if isinstance(entry, IPNetwork) else entry
+                if not isinstance(inner, IPv4Network):
+                    msg = f'Mixed IP versions are not supported with `collapse()`: {type(inner)!r}'
+                    raise TypeError(msg)
+                operands.append(inner)
+            for net in collapse_addresses(operands):
+                yield IPNetwork(net)
+            return
+
+        if isinstance(self._network, IPv6Network):
+            operands_v6: list[IPv6Network] = [self._network]
+            for entry in others:
+                inner = entry.unwrap() if isinstance(entry, IPNetwork) else entry
+                if not isinstance(inner, IPv6Network):
+                    msg = f'Mixed IP versions are not supported with `collapse()`: {type(inner)!r}'
+                    raise TypeError(msg)
+                operands_v6.append(inner)
+            for net in collapse_addresses(operands_v6):
+                yield IPNetwork(net)
+            return
+
+        msg = f'Unsupported network type: {type(self._network)!r}'
+        raise TypeError(msg)
 
     def unwrap(self) -> IPv4Network | IPv6Network:
         """Return the underlying `ipaddress.IPv4Network` or `ipaddress.IPv6Network`."""
         return self._network
-
-    def unwrap_addresses(self) -> Iterator[IPv4Address | IPv6Address]:
-        """Return an iterator yielding the underlying `ipaddress.IPv4Address` or `ipaddress.IPv6Address` objects within
-        the network.
-        """
-        yield from self._network
 
     @property
     def network(self) -> IPv4Network | IPv6Network:
@@ -896,3 +734,181 @@ class IPNetwork(_IPObject):
     def with_hostmask(self) -> str:
         """String representation of the network with explicit hostmask."""
         return self._network.with_hostmask
+
+    def unwrap_addresses(self) -> Iterator['IPv4Address | IPv6Address']:
+        """Return an iterator yielding the underlying `ipaddress.IPv4Address` or `ipaddress.IPv6Address` objects within
+        the network.
+        """
+        yield from self._network
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._network, name)
+
+    @classmethod
+    def __msgspec_decode__(cls, obj: Any) -> 'IPNetwork':
+        return IPNetwork(obj)
+
+    def __msgspec_encode__(self) -> str:
+        return str(self)
+
+
+class IPInterface(_IPObject):
+    """General-purpose IP interface wrapper.
+
+    Unifies `ipaddress.IPv4Interface` and `ipaddress.IPv6Interface` to a single type.
+    """
+
+    __slots__ = ('_interface',)
+
+    def __init__(self, address: RawIPAddress | RawNetworkPart | tuple[RawIPAddress] | tuple[RawIPAddress, int]) -> None:
+        """Initialize an instance of `IPInterface`.
+
+        Parameters
+        ----------
+        address : RawIPAddress | RawNetworkPart | tuple[RawIPAddress] | tuple[RawIPAddress, int]
+            IP interface address. Will be coerced into the appropriate `ipaddress.IPv4Interface` or
+            `ipaddress.IPv6Interface` object instance by the class internally.
+
+        Raises
+        ------
+        ipaddress.AddressValueError
+            If `address` is not a valid IPv4 or IPv6 interface.
+        ipaddress.NetmaskValueError
+            If the netmask is invalid.
+
+        Notes
+        -----
+        Types `RawIPAddress` and `RawNetworkPart` is defined as follows:
+
+        ```python
+        type RawIPAddress = int | str | bytes | ipaddress.IPv4Address | ipaddress.IPv6Address
+        type RawNetworkPart = (
+            ipaddress.IPv4Network | ipaddress.IPv6Network | ipaddress.IPv4Interface | ipaddress.IPv6Interface
+        )
+        ```
+        """
+        self._interface = ip_interface(address)
+
+    def __repr__(self) -> str:
+        return f'IPInterface({self._interface.with_prefixlen!r})'
+
+    def __str__(self) -> str:
+        return str(self._interface)
+
+    def __hash__(self) -> int:
+        return hash(self._interface)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, IPInterface):
+            return self._interface == other._interface
+        if isinstance(other, (IPv4Interface, IPv6Interface)):
+            return self._interface == other
+        return NotImplemented
+
+    def __lt__(self, other: object) -> bool:
+        if isinstance(other, IPInterface):
+            candidate = other._interface
+        elif isinstance(other, (IPv4Interface, IPv6Interface)):
+            candidate = other
+        else:
+            return NotImplemented
+        return self._interface < candidate  # pyright: ignore[reportOperatorIssue]
+
+    def unwrap(self) -> IPv4Interface | IPv6Interface:
+        """Return the underlying `IPv4Interface` or `IPv6Interface`."""
+        return self._interface
+
+    @property
+    def interface(self) -> IPv4Interface | IPv6Interface:
+        """An instance of either `IPv4Interface` or `IPv6Interface`."""
+        return self._interface
+
+    @property
+    def ip(self) -> IPAddress:
+        """IP address of this interface."""
+        return IPAddress(self._interface.ip)
+
+    @property
+    def network(self) -> IPNetwork:
+        """Network of this interface."""
+        return IPNetwork(self._interface.network)
+
+    @property
+    def version(self) -> Literal[4, 6]:
+        """IP version (either `4` or `6`)."""
+        return self._interface.version
+
+    @property
+    def is_ipv4(self) -> bool:
+        """`True` if the wrapped interface is an IPv4 interface."""
+        return self.version == 4
+
+    @property
+    def is_ipv6(self) -> bool:
+        """`True` if the wrapped interface is an IPv6 interface."""
+        return self.version == 6
+
+    @property
+    def hostmask(self) -> IPAddress:
+        """Hostmask of this interface."""
+        return IPAddress(self._interface.hostmask)
+
+    @property
+    def with_prefixlen(self) -> str:
+        """String representation of the interface with prefix length."""
+        return self._interface.with_prefixlen
+
+    @property
+    def with_netmask(self) -> str:
+        """String representation of the interface with netmask."""
+        return self._interface.with_netmask
+
+    @property
+    def with_hostmask(self) -> str:
+        """String representation of the interface with hostmask."""
+        return self._interface.with_hostmask
+
+    @property
+    def is_multicast(self) -> bool:
+        """`True` if the interface's network is reserved for multicast use."""
+        return self._interface.is_multicast
+
+    @property
+    def is_private(self) -> bool:
+        """`True` if the interface's network is defined as *not globally reachable*."""
+        return self._interface.is_private
+
+    @property
+    def is_global(self) -> bool:
+        """`True` if the interface's network is defined as *globally reachable*."""
+        return self._interface.is_global
+
+    @property
+    def is_reserved(self) -> bool:
+        """`True` if the interface's network is noted as reserved by the IETF."""
+        return self._interface.is_reserved
+
+    @property
+    def is_loopback(self) -> bool:
+        """`True` if this is a loopback interface's network."""
+        return self._interface.is_loopback
+
+    @property
+    def is_link_local(self) -> bool:
+        """`True` if the interface's network falls within the link-local scope."""
+        return self._interface.is_link_local
+
+    @property
+    def is_unspecified(self) -> bool:
+        """`True` if the interface's network is unspecified."""
+        return self._interface.is_unspecified
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._interface, name)
+
+    @classmethod
+    def __msgspec_decode__(cls, obj: Any) -> 'IPInterface':
+        return IPInterface(obj)
+
+    def __msgspec_encode__(self) -> str:
+        return str(self)
