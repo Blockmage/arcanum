@@ -3,7 +3,7 @@
   name            = "Arcanum"
   readme          = "README.md"
   requires-python = ">=3.13"
-  version         = "2026.08.12"
+  version         = "2026.09.06"
 
   authors = [
     { email = "developer@blockmage.dev", name = "Blockmage Developers" },
@@ -29,16 +29,10 @@
     "pytest>=9.1.1",
   ]
 
-# ------------------------------- build system ---------------------------------
+# -------------------------------- build system --------------------------------
 [build-system]
-  build-backend = "hatchling.build"
-  requires      = [ "hatchling" ]
-
-[tool.hatch.metadata]
-  allow-direct-references = true
-
-[tool.hatch.build]
-  dev-mode-dirs = [ ".", "src" ]
+  build-backend = "uv_build"
+  requires      = [ "uv_build>=0.8.11,<0.9.0" ]
 
 # ------------------------------- tool: coverage -------------------------------
 [tool.coverage.report]
