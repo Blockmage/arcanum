@@ -1,8 +1,8 @@
-from arcanum.typing import _codecs as codecs_types
-from arcanum.typing import _datetime as datetime_types
-from arcanum.typing import _io as io_types
-from arcanum.typing import _json as json_types
-from arcanum.typing import _path as path_types
+from . import _codecs as codecs_types
+from . import _datetime as datetime_types
+from . import _io as io_types
+from . import _json as json_types
+from . import _path as path_types
 
 # Codecs Types
 from ._codecs import EncodingErrorPolicy as EncodingErrorPolicy
