@@ -1,26 +1,19 @@
 import ipaddress
 import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, Final, Literal, Self, Unpack, cast
+from typing import Any, ClassVar, Final, Literal, Self, Unpack, cast
 
 from dotenv import dotenv_values, find_dotenv
 from msgspec import Struct, StructMeta, json, toml, yaml
 from msgspec.structs import asdict, fields
+from onepassword import Client, DesktopAuth
+
+from arcanum.logging import get_logger
 
 from ._types import StructKwargs, StructT
 from ._utils import is_msgspec_decodable, is_msgspec_encodable
 
-if TYPE_CHECKING:
-    from onepassword import Client as Client
-
-try:
-    from structlog import get_logger
-
-    logger = get_logger(__name__)
-except ImportError:
-    from logging import getLogger
-
-    logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _BaseStructMeta(StructMeta):
@@ -276,8 +269,8 @@ class DataStruct(Struct, metaclass=_DataStructMeta):
     @classmethod
     def _dec_hook(cls, obj_type: type, obj: Any) -> Any:
         """Convert object of unsupported type to a type supported for decoding."""
-        if is_msgspec_decodable(obj):
-            return obj.__msgspec_decode__(obj)
+        if is_msgspec_decodable(obj_type):
+            return obj_type.__msgspec_decode__(obj)
         if obj_type in cls._dec_handlers:
             return cls._dec_handlers[obj_type](obj_type, obj)
         msg = f'No handler registered for decoding objects of type {obj_type.__name__}'
@@ -477,29 +470,21 @@ class ConfigStruct(DataStruct):
     @classmethod
     async def _get_op_client(cls) -> 'Client':
         if cls._op_client is None:
-            try:
-                from onepassword import Client, DesktopAuth
-            except ImportError as err:
-                msg = "Missing required dependency 'onepassword-sdk'"
-                raise ImportError(msg) from err
-            else:
-                tkn, acc_name, client = '', '', None
-                kwds = {
-                    'integration_name': cls._op_integration_name,
-                    'integration_version': cls._op_integration_version,
-                }
-                if acc_name := os.getenv('OP_ACCOUNT', '').strip():
-                    client = await Client.authenticate(auth=DesktopAuth(account_name=acc_name), **kwds)
-                if tkn := os.getenv('OP_SERVICE_ACCOUNT_TOKEN', '').strip():
-                    client = await Client.authenticate(auth=tkn, **kwds)
-                if (not tkn.strip() and not acc_name.strip()) or client is None:
-                    msg = "If using 1Password, at least one of 'OP_ACCOUNT' or 'OP_SERVICE_ACCOUNT_NAME' "
-                    msg += 'variables must be set and non-empty in the environment'
-                    raise ValueError(msg)
-                cls._op_client = client
-                return cls._op_client
-        else:
-            return cls._op_client
+            tkn, acc_name, client = '', '', None
+            kwds = {
+                'integration_name': cls._op_integration_name,
+                'integration_version': cls._op_integration_version,
+            }
+            if acc_name := os.getenv('OP_ACCOUNT', '').strip():
+                client = await Client.authenticate(auth=DesktopAuth(account_name=acc_name), **kwds)
+            if tkn := os.getenv('OP_SERVICE_ACCOUNT_TOKEN', '').strip():
+                client = await Client.authenticate(auth=tkn, **kwds)
+            if (not tkn.strip() and not acc_name.strip()) or client is None:
+                msg = "If using 1Password, at least one of 'OP_ACCOUNT' or 'OP_SERVICE_ACCOUNT_NAME' "
+                msg += 'variables must be set and non-empty in the environment'
+                raise ValueError(msg)
+            cls._op_client = client
+        return cls._op_client
 
     async def resolve_secret_fields(self) -> None:
         pending: list[tuple[Struct, str, str]] = []
