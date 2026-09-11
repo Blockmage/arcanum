@@ -3,7 +3,7 @@
   name            = "Arcanum"
   readme          = "README.md"
   requires-python = ">=3.13"
-  version         = "2026.09.06"
+  version         = "2026.09.11"
 
   authors = [
     { email = "developer@blockmage.dev", name = "Blockmage Developers" },
@@ -11,6 +11,7 @@
 
   dependencies = [
     "anyio>=4.14.2",
+    "gevent>=26.8.0",
     "msgspec[toml,yaml]>=0.21.1",
     "onepassword-sdk>=0.4.1",
     "python-dotenv>=1.2.2",

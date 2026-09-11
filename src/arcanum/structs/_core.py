@@ -1,5 +1,6 @@
 import ipaddress
 import os
+import threading
 from collections.abc import Callable
 from typing import Any, ClassVar, Final, Literal, Self, Unpack, cast
 
@@ -467,6 +468,9 @@ class ConfigStruct(DataStruct):
     _op_integration_name: ClassVar[Final[str]] = 'ConfigStruct'
     _op_integration_version: ClassVar[Final[str]] = 'v1.0.0'
 
+    _resolve_lock: ClassVar[threading.Lock] = threading.Lock()
+    _resolved_instances: ClassVar[set[int]] = set()
+
     @classmethod
     async def _get_op_client(cls) -> 'Client':
         if cls._op_client is None:
@@ -519,3 +523,31 @@ class ConfigStruct(DataStruct):
             missing_str = ', '.join(unique_missing_refs)
             msg = f'Unable to resolve one or more 1Password secret references: {missing_str}'
             raise ValueError(msg)
+
+    def _dev_gevent_resolve_blocking(self) -> None:
+        """Attempt to resolve secrets from within a running `gevent` loop that we don't own.
+
+        Added for use with `pyinfra` (specifically, with the `pyinfra` CLI). This is a hack that works, but with the
+        caveat that it will cause the "ready" stage of the `pyinfra` deployment to run sequentially, adding significant
+        startup time prior to the actual deployment execution.
+        """
+        import asyncio, gevent  # noqa: E401, I001
+
+        inst_id = id(self)
+
+        with self._resolve_lock:
+            if inst_id in self._resolved_instances:
+                return
+
+            def _bridge() -> None:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(self.resolve_secret_fields())
+                finally:
+                    loop.close()
+
+            # Escape the gevent hub to avoid "loop already running" errors
+            pool = gevent.get_hub().threadpool
+            pool.apply(_bridge)
+            self._resolved_instances.add(inst_id)

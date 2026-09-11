@@ -67,6 +67,7 @@ ignoreWords:
   - numtide
   - pbit
   - pibit
+  - pyinfra
   - pypa
   - runonsave
   - sema
