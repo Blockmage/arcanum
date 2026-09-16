@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Final, Literal, Self, Unpack, cast
 
 from dotenv import dotenv_values, find_dotenv
 from msgspec import Struct, StructMeta, json, toml, yaml
-from msgspec.structs import asdict, fields
+from msgspec.structs import asdict, fields, force_setattr
 from onepassword import Client, DesktopAuth
 
 from arcanum.logging import get_logger
@@ -512,7 +512,8 @@ class ConfigStruct(DataStruct):
         for instance, attr_name, op_ref in pending:
             if (resolved := secrets.individual_responses.get(op_ref)) is not None:
                 if (res := resolved.content) is not None and res.secret:
-                    setattr(instance, attr_name, str(res.secret))
+                    # We use `msgspec.structs.force_setattr` to allow `ConfigStruct` instances to be frozen
+                    force_setattr(instance, attr_name, str(res.secret))
                     continue
             missing_refs.append(op_ref)
 

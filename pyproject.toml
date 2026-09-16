@@ -3,7 +3,7 @@
   name            = "Arcanum"
   readme          = "README.md"
   requires-python = ">=3.13"
-  version         = "2026.09.11"
+  version         = "2026.09.16"
 
   authors = [
     { email = "developer@blockmage.dev", name = "Blockmage Developers" },
