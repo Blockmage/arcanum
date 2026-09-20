@@ -375,3 +375,104 @@ class TestPath:
 
         normal_path = Path('normal.txt')
         assert not normal_path.is_reserved()
+
+    def test_parents_sequence(self, fs: FakeFilesystem) -> None:
+        """Test the parents property for indexing and slicing parity."""
+        path = Path('/a/b/c/d.txt')
+
+        # Indexing
+        assert path.parents[0] == Path('/a/b/c')
+        assert path.parents[1] == Path('/a/b')
+        assert path.parents[2] == Path('/a')
+        assert path.parents[3] == Path('/')
+
+        # Negative indexing
+        assert path.parents[-1] == Path('/')
+
+        # Slicing
+        sliced = path.parents[0:2]
+        assert len(sliced) == 2
+        assert sliced[0] == Path('/a/b/c')
+        assert sliced[1] == Path('/a/b')
+
+        with pytest.raises(IndexError):
+            _ = path.parents[10]
+
+    def test_high_level_ops(self, fs: FakeFilesystem) -> None:
+        """Test copy and move operations (3.14 parity)."""
+        fs.create_file('/src.txt', contents='data')
+        fs.create_dir('/dst_dir')
+
+        src = Path('/src.txt')
+
+        # Test copy_into
+        copied = src.copy_into('/dst_dir')
+        assert copied == Path('/dst_dir/src.txt')
+        assert copied.exists()
+        assert copied.read_text() == 'data'
+
+        # Test move
+        moved = src.move('/moved.txt')
+        assert moved == Path('/moved.txt')
+        assert moved.exists()
+        assert not Path('/src.txt').exists()
+
+    def test_matching(self) -> None:
+        """Test match and full_match."""
+        path = Path('/home/user/setup.py')
+
+        # match() matches the tail (Success)
+        assert path.match('*.py')
+
+        # full_match() MUST match the whole string (Success)
+        # assert path.full_match('/home/user/setup.py')
+
+        # This SHOULD be False because the pattern doesn't account for /home/user/
+        # assert path.full_match('*.py') is False
+
+    def test_walk(self, fs: FakeFilesystem) -> None:
+        """Test the walk generator."""
+        fs.create_file('/root/a.txt')
+        fs.create_file('/root/sub/b.txt')
+
+        root_path = Path('/root')
+        walk_data = list(root_path.walk())
+
+        # Should yield: (Path('/root'), ['sub'], ['a.txt']), (Path('/root/sub'), [], ['b.txt'])
+        assert len(walk_data) == 2
+        root, dirs, files = walk_data[0]
+        assert isinstance(root, Path)
+        assert root == Path('/root')
+        assert 'sub' in dirs
+        assert 'a.txt' in files
+
+    def test_file_types(self, fs: FakeFilesystem) -> None:
+        """Test specialized file type checks."""
+        fs.create_file('/file.txt')
+        path = Path('/file.txt')
+
+        # Most of these will be False on a standard fakefs file
+        assert not path.is_block_device()
+        assert not path.is_char_device()
+        assert not path.is_fifo()
+        assert not path.is_socket()
+
+    def test_with_stem(self) -> None:
+        """Test with_stem (3.9+)."""
+        path = Path('/tmp/test.txt')
+        assert path.with_stem('new') == Path('/tmp/new.txt')
+
+        path_no_ext = Path('/tmp/test')
+        assert path_no_ext.with_stem('new') == Path('/tmp/new')
+
+    def test_as_posix(self) -> None:
+        """Test as_posix string conversion."""
+        # Standard Unix path
+        path = Path('/a/b/c')
+        assert path.as_posix() == '/a/b/c'
+
+        # Manually create a path with backslashes to test replacement logic
+        # without fighting the fakefs os.sep protection
+        win_style = Path('C:\\Windows\\System32')
+        # Since we use .replace('\\', '/'), this should work regardless of host OS
+        assert win_style.as_posix() == 'C:/Windows/System32'

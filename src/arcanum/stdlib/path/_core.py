@@ -1,8 +1,7 @@
-import glob
 import os
 import os.path
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, Final, Literal, Self, TypeGuard
+from collections.abc import Generator, Iterator, Sequence
+from typing import IO, TYPE_CHECKING, Any, Final, Literal, Self, TypeGuard, overload
 
 from ._exceptions import FsError
 
@@ -24,9 +23,6 @@ __all__ = (
     'TextEncodingErrorPolicy',
 )
 
-_FILE_MODE: Final[int] = 0o600
-_DIR_MODE: Final[int] = 0o700
-
 # fmt: off
 _WINDOWS_RESERVED_FS_NAMES: Final[frozenset[str]] = frozenset({
     *(f'COM{i}' for i in range(1, 10)),
@@ -46,6 +42,54 @@ TextEncodingErrorPolicy = Literal[EncodingErrorPolicy, 'xmlcharrefreplace', 'nam
 
 def _is_pathlike(obj: object) -> TypeGuard[PathLike]:
     return isinstance(obj, str) or hasattr(obj, '__fspath__')
+
+
+class _PathParents(Sequence['Path']):
+    __slots__ = ('_cls', '_path')
+
+    def __init__(self, path: str, cls: type['Path']) -> None:
+        self._path = path
+        self._cls = cls
+
+    def __len__(self) -> int:
+        count = 0
+        curr = self._path
+        while True:
+            parent = os.path.dirname(curr)
+            if parent == curr or not parent:
+                break
+            count += 1
+            curr = parent
+        return count
+
+    @overload
+    def __getitem__(self, index: int) -> 'Path': ...
+    @overload
+    def __getitem__(self, index: slice) -> Sequence['Path']: ...
+    def __getitem__(self, index: int | slice) -> 'Path | Sequence[Path]':
+        if isinstance(index, slice):
+            # Convert to list to satisfy the Sequence[Path] return type for slices
+            return [self[i] for i in range(*index.indices(len(self)))]
+
+        if not isinstance(index, int):
+            msg = f'Path.parents indices must be integers or slices, not {type(index).__name__}'
+            raise TypeError(msg)
+
+        curr = self._path
+        if index < 0:
+            index += len(self)
+
+        if index < 0:
+            msg = 'Index out of range'
+            raise IndexError(msg)
+
+        for _ in range(index + 1):
+            parent = os.path.dirname(curr)
+            if parent == curr or not parent:
+                msg = 'Index out of range'
+                raise IndexError(msg)
+            curr = parent
+        return self._cls(curr)
 
 
 class Path:
@@ -319,7 +363,7 @@ class Path:
         with open(self._path, 'wb') as f:
             return f.write(data)
 
-    def mkdir(self, mode: int = _DIR_MODE, parents: bool = False, exist_ok: bool = False) -> None:
+    def mkdir(self, mode: int = 0o700, parents: bool = False, exist_ok: bool = False) -> None:
         """Create a new directory at the path.
 
         Parameters
@@ -414,6 +458,8 @@ class Path:
         Path
             Each matching path.
         """
+        import glob
+
         for path in glob.glob(os.path.join(self._path, pattern)):
             yield self.__class__(path)
 
@@ -430,10 +476,12 @@ class Path:
         Path
             Each matching path.
         """
+        import glob
+
         for path in glob.glob(os.path.join(self._path, '**', pattern), recursive=True):
             yield self.__class__(path)
 
-    def touch(self, mode: int = _FILE_MODE, exist_ok: bool = True) -> None:
+    def touch(self, mode: int = 0o600, exist_ok: bool = True) -> None:
         """Create a file at the path.
 
         Parameters
@@ -494,5 +542,225 @@ class Path:
             name = name.split('.', 1)[0]
         return name in _WINDOWS_RESERVED_FS_NAMES
 
+    # --- 2026-09-20
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        """Tuple providing access to the path's components."""
+        # This is slightly expensive, but necessary for parity
+        res = []
+        path = self._path
+        while True:
+            path, last = os.path.split(path)
+            if last:
+                res.append(last)
+            else:
+                if path:
+                    res.append(path)
+                break
+        return tuple(reversed(res))
+
+    @property
+    def suffixes(self) -> list[str]:
+        """List of the path's file extensions."""
+        if len(parts := self.name.split('.')) == 1:
+            return []
+        return [f'.{x}' for x in parts[1:]]
+
+    def with_stem(self, stem: str) -> Self:
+        """Return a new path with the stem changed."""
+        return self.with_name(f'{stem}{self.suffix}')
+
+    def readlink(self) -> Self:
+        """Return the path to which the symbolic link points."""
+        return self.__class__(os.readlink(self._path))
+
+    # File type checks using stat to avoid multiple syscalls
+    def _get_mode(self) -> int:
+        try:
+            return self.stat(follow_symlinks=False).st_mode
+        except OSError:
+            return 0
+
+    def is_mount(self) -> bool:
+        return os.path.ismount(self._path)
+
+    def is_socket(self) -> bool:
+        import stat
+
+        return stat.S_ISSOCK(self._get_mode())
+
+    def is_fifo(self) -> bool:
+        import stat
+
+        return stat.S_ISFIFO(self._get_mode())
+
+    @property
+    def parents(self) -> Sequence['Path']:
+        """The logical ancestors of the path."""
+        return _PathParents(self._path, self.__class__)
+
+    @property
+    def root(self) -> str:
+        """The root of the path, if any."""
+        return os.path.splitdrive(self._path)[1][0] if self.is_absolute() else ''
+
+    def is_relative_to(self, other: PathLike) -> bool:
+        """Return `True` if the path is relative to `other`."""
+        try:
+            self.relative_to(other)
+        except FsError:
+            return False
+        else:
+            return True
+
+    def match(self, pattern: str) -> bool:
+        """Return `True` if the path matches the given glob-style pattern."""
+        import fnmatch
+
+        # If the pattern is absolute, match the whole path
+        if pattern.startswith(('/', '\\')) or (len(pattern) > 1 and pattern[1] == ':'):
+            return fnmatch.fnmatch(self._path, pattern)
+
+        # Otherwise, match against the name or the end of the path
+        # This mirrors pathlib's behavior of matching the tail
+        return fnmatch.fnmatch(self.name, pattern) or fnmatch.fnmatch(self._path, f'*/{pattern}'.replace('//', '/'))
+
+    def open(self, mode: str = 'r', buffering: int = -1, **kwargs: Any) -> IO[Any]:
+        """Open the file pointed to by the path."""
+        return open(self._path, mode, buffering, **kwargs)
+
+    def lstat(self) -> os.stat_result:
+        """Like `stat()`, but if the path is a symlink, return the symlink's status."""
+        return self.stat(follow_symlinks=False)
+
+    def lchmod(self, mode: int) -> None:
+        """Like `chmod()`, but if the path is a symlink, change the symlink's mode."""
+        os.chmod(self._path, mode, follow_symlinks=False)
+
+    def owner(self) -> str:
+        """Return the name of the user owning the file."""
+        import pwd
+
+        return pwd.getpwuid(self.stat().st_uid).pw_name
+
+    def group(self) -> str:
+        """Return the name of the group owning the file."""
+        import grp
+
+        return grp.getgrgid(self.stat().st_gid).gr_name
+
+    def symlink_to(self, target: PathLike, target_is_directory: bool = False) -> None:
+        """Make this path a symlink to the given target."""
+        os.symlink(os.fspath(target), self._path, target_is_directory)
+
+    def hardlink_to(self, target: PathLike) -> None:
+        """Make this path a hard link to the same file as target."""
+        os.link(os.fspath(target), self._path)
+
+    def is_block_device(self) -> bool:
+        import stat
+
+        return stat.S_ISBLK(self._get_mode())
+
+    def is_char_device(self) -> bool:
+        import stat
+
+        return stat.S_ISCHR(self._get_mode())
+
+    def walk(
+        self, topdown: bool = True, on_error: Any = None, follow_symlinks: bool = False
+    ) -> Generator[tuple['Path', list[str], list[str]], Any]:
+        """Directory tree generator."""
+        for root, dirs, files in os.walk(self._path, topdown, on_error, follow_symlinks):
+            yield self.__class__(root), dirs, files
+
+    def copy(self, target: PathLike, follow_symlinks: bool = True) -> Self:
+        """Copy the file to a new location (using `shutil.copy2`)."""
+        import shutil
+
+        dst = os.fspath(target)
+        shutil.copy2(self._path, dst, follow_symlinks=follow_symlinks)
+        return self.__class__(dst)
+
+    def copy_into(self, target_dir: PathLike, follow_symlinks: bool = True) -> Self:
+        """Copy this file into the specified directory."""
+        dst = self.__class__(target_dir).joinpath(self.name)
+        return self.copy(dst, follow_symlinks=follow_symlinks)
+
+    def move(self, target: PathLike) -> Self:
+        """Move the file or directory to a new location."""
+        import shutil
+
+        dst = os.fspath(target)
+        shutil.move(self._path, dst)
+        return self.__class__(dst)
+
+    def move_into(self, target_dir: PathLike) -> Self:
+        """Move this file into the specified directory."""
+        dst = self.__class__(target_dir).joinpath(self.name)
+        return self.move(dst)
+
+    def with_segments(self, *segments: PathLike) -> Self:
+        """Create a new path from the given segments, using the same flavor."""
+        # For our implementation, this is essentially a join on the root or current class
+        return self.__class__(os.path.join(*(os.fspath(s) for s in segments)))
+
+    def is_junction(self) -> bool:
+        """Return True if the path is a Windows junction."""
+        try:
+            st = self.lstat()
+            # Junctions are directories with a reparse point attribute
+            import stat
+
+            return stat.S_ISDIR(st.st_mode) and hasattr(st, 'st_reparse_tag')
+        except (OSError, AttributeError):
+            return False
+
+    def info(self) -> dict[str, Any]:
+        """Return a dictionary of file metadata."""
+        st = self.stat()
+        return {
+            'size': st.st_size,
+            'mtime': st.st_mtime,
+            'ctime': st.st_ctime,
+            'isdir': self.is_dir(),
+            'islink': self.is_symlink(),
+        }
+
+    @property
+    def parser(self) -> Any:
+        """Return the underlying path module (os.path)."""
+        return os.path
+
+    def as_posix(self) -> str:
+        """Return the string representation with forward slashes."""
+        return self._path.replace('\\', '/')
+
 
 os.PathLike.register(Path)
+
+
+if __name__ == '__main__':
+    import pathlib
+
+    def get_public_api(obj: Any) -> set[str]:
+        return {name for name in dir(obj) if not name.startswith('_')}
+
+    pathlib_api = get_public_api(pathlib.Path('.'))
+    custom_api = get_public_api(Path('.'))
+
+    missing = sorted(pathlib_api - custom_api)
+    extra = sorted(custom_api - pathlib_api)
+
+    msg = 'Missing from Custom Path:'
+    print(msg)
+    print('-' * (len(msg) + 1))
+    for item in missing:
+        print(item)
+
+    msg = 'Extra in Custom Path:'
+    print(f'\n{msg}')
+    print('-' * (len(msg) + 1))
+    for item in extra:
+        print(item)

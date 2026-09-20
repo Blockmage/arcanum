@@ -48,6 +48,7 @@ ignoreWords:
   - direnvrc
   - ebit
   - eibit
+  - fakefs
   - fspath
   - gibit
   - gnused
@@ -76,4 +77,3 @@ ignoreWords:
   - tbit
   - tibit
   - vfspath
-words: []
