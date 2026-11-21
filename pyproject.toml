@@ -6,7 +6,7 @@
   version         = "2026.11.21"
 
   authors = [
-    { email = "developer@blockmage.dev", name = "Blockmage Developers" },
+    { email = "arcanum.2x31b@sl.blockmage.dev", name = "Arcanum Developers" },
   ]
 
   dependencies = [

@@ -12,26 +12,55 @@ ignorePaths:
 import:
   - https://cdn.jsdelivr.net/npm/@cspell/dict-de-de@4/cspell-ext.json
   - https://cdn.jsdelivr.net/npm/@cspell/dict-en_us@4/cspell-ext.json
+dictionaryDefinitions:
+  - name: Workspace Custom Wordlist
+    addWords: true
+    description: Workspace Custom Wordlist ('_meta/config/cspell.txt')
+    path: _meta/config/cspell.txt
 dictionaries:
+  # Custom dictionaries
+  - Workspace Custom Wordlist
+  # Dictionaries provided by cspell
   - aws
   - bash
   - coding-compound-terms
   - companies
+  - computing-acronyms
+  - cpp
   - cryptocurrencies
+  - css
+  - data-science
+  - data-science-models
+  - data-science-tools
   - de_DE
   - en_US
+  - en-common-misspellings
+  - en-shared
+  - en-us-common-misspellings
   - filetypes
   - fullstack
   - golang
+  - html
+  - html-symbol-entities
+  - k8s
   - lorem-ipsum
+  - lua
   - networking-terms
   - node
   - npm
   - public-licenses
   - python
   - python-common
+  - shellscript
+  - software-term-suggestions
   - software-tools
   - softwareTerms
+  - sql
+  - svelte
+  - swift
+  - terraform
+  - typescript
+  - web-services
 ignoreWords:
   - acritical
   - activ
