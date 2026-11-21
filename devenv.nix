@@ -57,13 +57,13 @@
 
     python.enable = true;
     python.venv.enable = true;
-    python.version = "3.14";
+    python.package = pkgs.python314;
 
     python.uv = {
       enable = true;
       sync.enable = true;
       sync.allExtras = true; # All optional dependencies
-      sync.allGroups = false; # All dependency groups
+      sync.allGroups = true; # All dependency groups
       sync.allPackages = false; # All uv workspace members
     };
   };

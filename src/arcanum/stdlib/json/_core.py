@@ -1,25 +1,66 @@
 import json as _std_json
 import os
 import tempfile
+from collections.abc import Buffer
 from typing import IO, Any, Literal, Unpack, overload
 
-from msgspec import json, to_builtins, toml, yaml
+from msgspec import json as _msg_json
+from msgspec import to_builtins, toml, yaml
 from typed_sentinels import Sentinel
 
-from arcanum.stdlib.path import Path
+from arcanum.stdlib.path import Path, PathLike
 
-from ._types import DecCacheKey, DecKw, DumpsKw, EncCacheKey, EncHook, EncKw
+from ._types import DecCacheKeyT, DecKw, DumpsKw, EncCacheKeyT, EncHookT, EncKw, _CacheT
+from ._utils import _create_cache
+
+__all__ = (
+    'dump',
+    'dump_file',
+    'dump_toml',
+    'dump_toml_file',
+    'dump_yaml',
+    'dump_yaml_file',
+    'dumps',
+    'dumps_toml',
+    'dumps_yaml',
+    'get_decoder',
+    'get_encoder',
+    'load',
+    'load_file',
+    'load_toml',
+    'load_toml_file',
+    'load_yaml',
+    'load_yaml_file',
+    'loads',
+    'loads_toml',
+    'loads_yaml',
+    'minify',
+    'prettify',
+)
+
+# region: Globals --------------------------------------------------------------
 
 _SNTL = Sentinel()
 
-_DEFAULT_ENCODER: json.Encoder = json.Encoder()
-_DEFAULT_DECODER: json.Decoder[Any] = json.Decoder()
+_DEFAULT_ENCODER: _msg_json.Encoder = _msg_json.Encoder()
+_DEFAULT_DECODER: _msg_json.Decoder[Any] = _msg_json.Decoder()
 
-_DEFAULT_ENC_CACHE_KEY: EncCacheKey = (_SNTL, 'string', 'canonical', None)
-_DEFAULT_DEC_CACHE_KEY: DecCacheKey[Any] = (_SNTL, True, None, None)
+_DEFAULT_ENC_CACHE_KEY: EncCacheKeyT = (_SNTL, 'string', 'canonical', None)
+_DEFAULT_DEC_CACHE_KEY: DecCacheKeyT[Any] = (_SNTL, True, None, None)
 
-_enc_cache: dict[EncCacheKey, json.Encoder] = {_DEFAULT_ENC_CACHE_KEY: _DEFAULT_ENCODER}
-_dec_cache: dict[DecCacheKey, json.Decoder[Any]] = {_DEFAULT_DEC_CACHE_KEY: _DEFAULT_DECODER}
+# _enc_cache: dict[EncCacheKeyT, _msg_json.Encoder] = {_DEFAULT_ENC_CACHE_KEY: _DEFAULT_ENCODER}
+# _dec_cache: dict[DecCacheKeyT, _msg_json.Decoder[Any]] = {_DEFAULT_DEC_CACHE_KEY: _DEFAULT_DECODER}
+
+_enc_cache: _CacheT[EncCacheKeyT, _msg_json.Encoder] = _create_cache(
+    [(_DEFAULT_ENC_CACHE_KEY, _DEFAULT_ENCODER)],
+)
+_dec_cache: _CacheT[DecCacheKeyT[Any], _msg_json.Decoder[Any]] = _create_cache(
+    [(_DEFAULT_DEC_CACHE_KEY, _DEFAULT_DECODER)]
+)
+
+# endregion
+
+# region: Internal Helpers -----------------------------------------------------
 
 
 def _filter_dumps_kw(opt: Literal['std', 'msg'], /, **kwargs: Unpack[DumpsKw]) -> dict[str, Any]:
@@ -45,8 +86,8 @@ def _filter_dumps_kw(opt: Literal['std', 'msg'], /, **kwargs: Unpack[DumpsKw]) -
     return {k: v for k, v in kwargs.items() if k not in ('order', 'enc_hook', 'builtin_types', 'str_keys')}
 
 
-def _build_dec_key[T: type](typ: T, **kwargs: Unpack[DecKw]) -> DecCacheKey[T]:
-    """Return a `DecCacheKey` from input `typ` and `DecKw` keyword arguments."""
+def _build_dec_key[T: type](typ: T, **kwargs: Unpack[DecKw]) -> DecCacheKeyT[T]:
+    """Return a `DecCacheKeyT` from input `typ` and `DecKw` keyword arguments."""
     return (
         typ,
         kwargs.get('strict', True),
@@ -55,8 +96,8 @@ def _build_dec_key[T: type](typ: T, **kwargs: Unpack[DecKw]) -> DecCacheKey[T]:
     )
 
 
-def _build_enc_key[T: EncHook](hook: T, **kwargs: Unpack[EncKw]) -> EncCacheKey[T]:
-    """Return an `EncCacheKey` from input `hook` and `EncKw` keyword arguments."""
+def _build_enc_key[T: EncHookT](hook: T, **kwargs: Unpack[EncKw]) -> EncCacheKeyT[T]:
+    """Return an `EncCacheKeyT` from input `hook` and `EncKw` keyword arguments."""
     return (
         hook,
         kwargs.get('decimal_format', 'string'),
@@ -65,7 +106,72 @@ def _build_enc_key[T: EncHook](hook: T, **kwargs: Unpack[EncKw]) -> EncCacheKey[
     )
 
 
-def get_decoder[T: type](typ: T = _SNTL, **kwargs: Unpack[DecKw]) -> json.Decoder[T] | json.Decoder[Any]:
+# TODO: Add overloads for 'rb'
+def _read_file(
+    filename: PathLike,
+    *,
+    mode: str = 'rb',
+    encoding: str | None = None,
+    errors: str = 'strict',
+) -> bytes | str:
+    try:
+        with open(filename, mode=mode, encoding=encoding, errors=errors if encoding else None) as f:
+            return f.read()
+    except (OSError, FileNotFoundError, PermissionError) as exc:
+        msg = f"Failed to read file '{filename}': {exc!s}"
+        raise type(exc)(msg) from None
+
+
+def _write_file(
+    filename: PathLike,
+    data: Buffer | str,
+    *,
+    encoding: str = 'utf-8',
+    errors: str = 'strict',
+    make_dirs: bool = False,
+    atomic: bool = False,
+) -> None:
+    path = Path(filename)
+
+    if make_dirs:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+    mode = 'wb' if isinstance(data, (bytes, bytearray, memoryview)) else 'w'
+    _encoding = None if mode == 'wb' else encoding
+    _errors = None if mode == 'wb' else errors
+
+    try:
+        if atomic:
+            directory = path.parent
+            prefix = f'.{path.name}.'
+            suffix = '.tmp'
+
+            with tempfile.NamedTemporaryFile(
+                mode=mode,
+                encoding=_encoding,
+                errors=_errors,
+                delete=False,
+                dir=directory,
+                prefix=prefix,
+                suffix=suffix,
+            ) as tmp:
+                tmp_name = tmp.name
+                tmp.write(data)
+            os.replace(tmp_name, path)
+        else:
+            with open(path, mode, encoding=_encoding, errors=_errors) as f:
+                f.write(data)
+    except (OSError, FileNotFoundError, PermissionError) as exc:
+        msg = f"Failed to write to file '{filename}': {exc!s}"
+        raise type(exc)(msg) from None
+
+
+# endregion
+
+# region: JSON -----------------------------------------------------------------
+
+
+def get_decoder[T: Any](typ: type[T] = _SNTL, **kwargs: Unpack[DecKw]) -> _msg_json.Decoder[T]:
     """Get or create an instance of `msgspec.json.Decoder` instantiated with the provided arguments.
 
     For each new combination of `typ` and `kwargs`, a new instance is created, cached, and returned.
@@ -74,7 +180,7 @@ def get_decoder[T: type](typ: T = _SNTL, **kwargs: Unpack[DecKw]) -> json.Decode
 
     Parameters
     ----------
-    typ : type, optional
+    typ : Any, optional
         Optional type to be used to instantiate the decoder.
         If provided, the returned decoder will decode JSON data into Python objects of this type.
     **kwargs : DecKw, optional
@@ -82,7 +188,7 @@ def get_decoder[T: type](typ: T = _SNTL, **kwargs: Unpack[DecKw]) -> json.Decode
 
     Returns
     -------
-    json.Decoder[T] | json.Decoder[Any]
+    json.Decoder[T]
         An instance of `msgspec.json.Decoder`.
     """
     if typ is _SNTL and not kwargs:
@@ -91,12 +197,12 @@ def get_decoder[T: type](typ: T = _SNTL, **kwargs: Unpack[DecKw]) -> json.Decode
         return _DEFAULT_DECODER
     if key in _dec_cache:
         return _dec_cache[key]
-    dec = json.Decoder(type=typ, **kwargs) if typ is not _SNTL else json.Decoder(**kwargs)
+    dec = _msg_json.Decoder(type=typ, **kwargs) if typ is not _SNTL else _msg_json.Decoder(**kwargs)
     _dec_cache[key] = dec
     return dec
 
 
-def get_encoder(hook: EncHook = _SNTL, **kwargs: Unpack[EncKw]) -> json.Encoder:
+def get_encoder(hook: EncHookT = _SNTL, **kwargs: Unpack[EncKw]) -> _msg_json.Encoder:
     """Get or create an instance of `msgspec.json.Encoder` instantiated with the provided arguments.
 
     For each new combination of `hook` and `kwargs`, a new instance is created, cached, and returned.
@@ -105,7 +211,7 @@ def get_encoder(hook: EncHook = _SNTL, **kwargs: Unpack[EncKw]) -> json.Encoder:
 
     Parameters
     ----------
-    hook : EncHook, optional
+    hook : EncHookT, optional
         Optional function to be called by the encoder to handle any unsupported types.
         If provided, this should be a function that takes a single object of type `Any` as input, and either returns a
         type serializable by the encoder, or raises a `NotImplementedError` for types that cannot be converted.
@@ -123,7 +229,7 @@ def get_encoder(hook: EncHook = _SNTL, **kwargs: Unpack[EncKw]) -> json.Encoder:
         return _DEFAULT_ENCODER
     if key in _enc_cache:
         return _enc_cache[key]
-    enc = json.Encoder(enc_hook=hook, **kwargs) if hook is not _SNTL else json.Encoder(**kwargs)
+    enc = _msg_json.Encoder(enc_hook=hook, **kwargs) if hook is not _SNTL else _msg_json.Encoder(**kwargs)
     _enc_cache[key] = enc
     return enc
 
@@ -145,7 +251,7 @@ def minify[T: (bytes, str)](data: T) -> T:
     bytes | str
         Minified JSON data.
     """
-    return json.format(data, indent=-1)
+    return _msg_json.format(data, indent=-1)
 
 
 @overload
@@ -175,7 +281,7 @@ def prettify[T: (bytes, str)](data: T, *, indent: int = 2) -> T:
     if indent <= 0:
         msg = 'Use `minify()` instead'
         raise ValueError(msg)
-    return json.format(data, indent=indent)
+    return _msg_json.format(data, indent=indent)
 
 
 def _std_json_dumps(
@@ -187,7 +293,7 @@ def _std_json_dumps(
     minified: bool = False,
     as_bytes: bool = False,
     **kwargs: Unpack[DumpsKw],
-) -> str | bytes:
+) -> bytes | str:
     """Return a JSON `bytes` or `str` object serialized using the standard library's `json.dumps()`.
 
     Data is first prepared with `msgspec.to_builtins()` for compatibility.
@@ -200,72 +306,10 @@ def _std_json_dumps(
     return minify(result) if minified else prettify(result, indent=indent) if pretty else result
 
 
-def read_file(
-    filename: os.PathLike[str],
-    *,
-    mode: str = 'r',
-    encoding: str = 'utf-8',
-    errors: str = 'strict',
-) -> str:
-    try:
-        with open(filename, encoding=encoding, errors=errors, mode=mode) as f:
-            return f.read()
-    except (OSError, FileNotFoundError, PermissionError) as exc:
-        msg = f"Failed to read file '{filename}': {exc!s}"
-        raise type(exc)(msg) from exc
-
-
-def write_file(
-    filename: os.PathLike[str],
-    data: bytes | str,
-    *,
-    encoding: str = 'utf-8',
-    errors: str = 'strict',
-    make_dirs: bool = False,
-    atomic: bool = False,
-) -> None:
-    path = Path(filename)
-
-    if make_dirs:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-    mode = 'wb' if isinstance(data, bytes) else 'w'
-
-    try:
-        if atomic:
-            directory = str(path.parent)
-            prefix = f'.{path.name}.'
-            suffix = '.tmp'
-
-            with tempfile.NamedTemporaryFile(
-                mode=mode,
-                encoding=None if mode == 'wb' else encoding,
-                errors=None if mode == 'wb' else errors,
-                delete=False,
-                dir=directory,
-                prefix=prefix,
-                suffix=suffix,
-            ) as tmp:
-                tmp_name = tmp.name
-                tmp.write(data)
-            os.replace(tmp_name, path)
-        else:
-            with open(
-                path,
-                mode,
-                encoding=None if mode == 'wb' else encoding,
-                errors=None if mode == 'wb' else errors,
-            ) as f:
-                f.write(data)
-    except (OSError, FileNotFoundError, PermissionError) as e:
-        msg = f"Failed to write to file '{filename}': {e!s}"
-        raise type(e)(msg) from e
-
-
 @overload
 def dumps(
     obj: Any,
-    encoder: json.Encoder | None = None,
+    encoder: _msg_json.Encoder | None = None,
     indent: int = _SNTL,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -276,7 +320,7 @@ def dumps(
 @overload
 def dumps(
     obj: Any,
-    encoder: json.Encoder | None = None,
+    encoder: _msg_json.Encoder | None = None,
     indent: int = _SNTL,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -288,7 +332,7 @@ def dumps(
 @overload
 def dumps(
     obj: Any,
-    encoder: json.Encoder | None = None,
+    encoder: _msg_json.Encoder | None = None,
     indent: int = _SNTL,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -299,7 +343,7 @@ def dumps(
 ) -> bytes: ...
 def dumps(
     obj: Any,
-    encoder: json.Encoder | None = None,
+    encoder: _msg_json.Encoder | None = None,
     indent: int = _SNTL,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -307,7 +351,7 @@ def dumps(
     minified: bool = False,
     as_bytes: bool = False,
     **kwargs: Unpack[DumpsKw],
-) -> str | bytes:
+) -> bytes | str:
     """Serialize `obj` as JSON `str` or `bytes` data, optionally prettifying or minifying.
 
     Parameters
@@ -341,7 +385,7 @@ def dumps(
 
     Returns
     -------
-    str | bytes
+    bytes | str
         The input `obj` encoded as either `str` or `bytes` JSON data.
 
     Raises
@@ -378,7 +422,7 @@ def dumps(
     return minify(result) if minified else prettify(result, indent=indent) if pretty else result
 
 
-def loads[T](s: str | bytes | bytearray, *, decoder: json.Decoder[Any] | None = None, typ: type[T] = _SNTL) -> Any:
+def loads[T: Any](s: Buffer | str, *, decoder: _msg_json.Decoder[T] | None = None, typ: type[T] = _SNTL) -> T:
     if decoder is not None:
         return decoder.decode(s)
     return get_decoder(typ).decode(s)
@@ -391,41 +435,42 @@ def dump(obj: Any, fp: IO[str], *, indent: int | None = None) -> None:
     """
     if indent is not None:
         encoded = _DEFAULT_ENCODER.encode(obj)
-        formatted = json.format(encoded, indent=indent)
+        formatted = _msg_json.format(encoded, indent=indent)
         fp.write(formatted.decode('utf-8'))
     else:
         fp.write(_DEFAULT_ENCODER.encode(obj).decode('utf-8'))
 
 
-def dump_file(obj: Any, filename: os.PathLike[str], *, indent: int | None = None) -> None:
+def dump_file(obj: Any, filename: PathLike, *, indent: int | None = None) -> None:
     """Serialize `obj` as JSON and write to file `filename`.
 
     If `indent` is not `None`, pretty-print output.
     """
     data = dumps(obj, indent=indent) if indent is not None else dumps(obj)
-    write_file(filename, data)
+    _write_file(filename, data)
 
 
-def load[T](fp: IO[str], *, typ: type[T] | None = None) -> Any:
+def load[T: Any](fp: IO[str], *, typ: type[T] = _SNTL) -> T:
     """Deserialize JSON content from file object `fp` to a Python object.
 
     If provided an argument for `typ`, get or create a new cached `Decoder` instance corresponding to that type.
     """
     s = fp.read()
-    if typ is not None:
-        return get_decoder(typ).decode(s)
-    return _DEFAULT_DECODER.decode(s)
+    return get_decoder(typ).decode(s)
 
 
-def load_file[T](filename: os.PathLike[str], *, typ: type[T] | None = None) -> Any:
+def load_file[T: Any](filename: PathLike, *, typ: type[T] = _SNTL) -> T:
     """Deserialize JSON content from file `filename` to a Python object.
 
     If provided an argument for `typ`, get or create a new cached `Decoder` instance corresponding to that type.
     """
-    s = read_file(filename)
-    if typ is not None:
-        return get_decoder(typ).decode(s)
-    return _DEFAULT_DECODER.decode(s)
+    s = _read_file(filename)
+    return get_decoder(typ).decode(s)
+
+
+# endregion
+
+# region: TOML -----------------------------------------------------------------
 
 
 @overload
@@ -441,32 +486,23 @@ def dumps_toml(obj: Any, *, encoding: str = 'utf-8', errors: str = 'strict', as_
     return result.decode(encoding, errors)
 
 
-def loads_toml[T](s: str | bytes | bytearray, *, typ: type[T] = dict[Any, Any], strict: bool = True) -> T:
-    if isinstance(s, str):
-        s = s.encode('utf-8')
-    elif isinstance(s, bytearray):
-        s = bytes(s)
+def loads_toml[T: Any](s: Buffer | str, *, typ: type[T] = dict[str, Any], strict: bool = True) -> T:
     return toml.decode(s, type=typ, strict=strict)
 
 
 def dump_toml(obj: Any, fp: IO[str]) -> None:
     data = dumps_toml(obj, as_bytes=False)
-    fp.write(str(data))
+    fp.write(data)
 
 
-def load_toml[T](
-    fp: IO[str],
-    *,
-    typ: type[T] = dict[Any, Any],
-    strict: bool = True,
-) -> T:
+def load_toml[T: Any](fp: IO[str], *, typ: type[T] = dict[str, Any], strict: bool = True) -> T:
     data = fp.read()
     return loads_toml(data, typ=typ, strict=strict)
 
 
 def dump_toml_file(
     obj: Any,
-    filename: os.PathLike[str],
+    filename: PathLike,
     *,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -474,19 +510,24 @@ def dump_toml_file(
     atomic: bool = False,
 ) -> None:
     data = dumps_toml(obj)
-    write_file(filename, data, encoding=encoding, errors=errors, make_dirs=make_dirs, atomic=atomic)
+    _write_file(filename, data, encoding=encoding, errors=errors, make_dirs=make_dirs, atomic=atomic)
 
 
-def load_toml_file[T](
-    filename: os.PathLike[str],
+def load_toml_file[T: Any](
+    filename: PathLike,
     *,
-    typ: type[T] = dict[Any, Any],
+    typ: type[T] = dict[str, Any],
     encoding: str = 'utf-8',
     errors: str = 'strict',
     strict: bool = True,
 ) -> T:
-    data = read_file(filename, encoding=encoding, errors=errors)
+    data = _read_file(filename, encoding=encoding, errors=errors)
     return loads_toml(data, typ=typ, strict=strict)
+
+
+# endregion
+
+# region: YAML -----------------------------------------------------------------
 
 
 @overload
@@ -502,6 +543,7 @@ def dumps_yaml(obj: Any, *, encoding: str = 'utf-8', errors: str = 'strict', as_
     return result.decode(encoding, errors)
 
 
+# TODO: Switch to `Buffer | str` and handle `dec_hook` input
 def loads_yaml[T](s: str | bytes | bytearray, *, typ: type[T] = dict[Any, Any], strict: bool = True) -> T:
     if isinstance(s, str):
         s = s.encode('utf-8')
@@ -522,7 +564,7 @@ def load_yaml[T](fp: IO[str], *, typ: type[T] = dict[Any, Any], strict: bool = T
 
 def dump_yaml_file(
     obj: Any,
-    filename: os.PathLike[str],
+    filename: PathLike,
     *,
     encoding: str = 'utf-8',
     errors: str = 'strict',
@@ -530,16 +572,19 @@ def dump_yaml_file(
     atomic: bool = False,
 ) -> None:
     data = dumps_yaml(obj)
-    write_file(filename, data, encoding=encoding, errors=errors, make_dirs=make_dirs, atomic=atomic)
+    _write_file(filename, data, encoding=encoding, errors=errors, make_dirs=make_dirs, atomic=atomic)
 
 
-def load_yaml_file[T](
-    filename: os.PathLike[str],
+def load_yaml_file[T: Any](
+    filename: PathLike,
     *,
     typ: type[T] = dict[Any, Any],
     encoding: str = 'utf-8',
     errors: str = 'strict',
     strict: bool = True,
 ) -> T:
-    data = read_file(filename, encoding=encoding, errors=errors)
+    data = _read_file(filename, encoding=encoding, errors=errors)
     return loads_yaml(data, typ=typ, strict=strict)
+
+
+# endregion
