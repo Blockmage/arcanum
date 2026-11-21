@@ -1,3 +1,5 @@
+# toml-language-server: $schema=https://www.schemastore.org/ruff.json
+
 force-exclude     = true
 indent-width      = 4
 line-length       = 120
@@ -21,69 +23,53 @@ exclude = [  ]
   unfixable = [  ]
 
   ignore = [
-    # ID       # NAME                              # REASON FOR DISABLING
+    # ID       # Name                              # Reason for Disabling
     # -------- # --------------------------------- # --------------------
-    "ANN002",  # missing-type-args                 # ANN002-ANN003: often annoying - almost never helpful
+    "ANN002",  # missing-type-args                 # ANN002-ANN003: unhelpful/annoying
     "ANN003",  # missing-type-kwargs               # -
-    "ANN401",  # any-type                          # `Any` is not *ideal*, but sometimes necessary
+    "ANN401",  # any-type                          # while not ideal, `Any` is often useful or necessary
     "BLE001",  # blind-except                      # `BaseException` fangen? Böse. `Exception`? Völlig in Ordnung...
-    "COM812",  # missing-trailing-comma            # redundant (enforced by formatter)
-    "COM819",  # prohibited-trailing-comma         # redundant (enforced by formatter)
-    "D100",    # undocumented-public-module        # D100-D107: preference (docstrings are usually added later)
-    "D101",    # undocumented-public-class         # -
-    "D102",    # undocumented-public-method        # -
-    "D103",    # undocumented-public-function      # -
-    "D104",    # undocumented-public-package       # -
-    "D105",    # undocumented-magic-method         # -
-    "D106",    # undocumented-public-nested-class  # -
-    "D107",    # undocumented-public-init          # -
-    "D202",    # blank-line-after-function         # rule removes blank lines between docstring and function body
-    "D203",    # incorrect-blank-line-before-class # rule adds blank line between class definition and docstring
-    "D206",    # docstring-tab-indentation         # D206-208: redundant (enforced by formatter)
+    "COM812",  # missing-trailing-comma            # COM812-COM819: enforced by formatter
+    "COM819",  # prohibited-trailing-comma         # -
+    "CPY",     # missing-copyright-notice          # -
+    "D1",      # pydocstyle                        # stylistic
+    "D202",    # blank-line-after-function         # removes blank line between docstring and function body
+    "D203",    # incorrect-blank-line-before-class # adds blank line between class definition and docstring
+    "D206",    # docstring-tab-indentation         # D206-208: enforced by formatter
     "D207",    # under-indentation                 # -
     "D208",    # over-indentation                  # -
-    "D213",    # multi-line-summary-second-line    # rule moves summary line to second physical line of docstring
-    "ERA001",  # commented-out-code                # harmless and likely intentional
-    "F401",    # unused-import                     # removes imports while working if saved and fix-on-save enabled
-    "FIX002",  # line-contains-todo                # the entire point is that the to-do indicates it is to be done
-    "INP001",  # implicit-namespace-package        # unhelpful - just complains about the lack of an `__init__.py`
-    "N817",    # camelcase-imported-as-acronym     # stylistic
-    "N818",    # error-suffix-on-exception-name    # stylistic
-    "PLC0414", # useless-import-alias              # usually intentional, rarely accidental
-    "PLC0415", # import-outside-top-level          # imports in functions are useful in multiple scenarios
-    "PLR2004", # magic-value-comparison            # rarely helpful, usually just annoying
-    "PLW0603", # global-statement                  # usually intentional, almost impossible to do accidentally
-    "PTH",     # flake8-use-pathlib                # pathlib is great, but we can use it at our own discretion
-    "PYI021",  # docstring-in-stub                 # actually kind of senseless - consider C extensions with only stubs
-    "S105",    # hardcoded-password-string         # doch
-    "S108",    # hardcoded-temp-file               # if this is how the system becomes compromised, it already was
-    "S110",    # try-except-pass                   # S110-112: "consider logging the exception" - consider it considered
-    "S112",    # try-except-continue               # -
-    "S311",    # suspicious-non-cryptographic-r... # unhelpful - reinforcing what should be obvious
-    "S601",    # paramiko-call                     # S601-S612: unhelpful - reinforcing what should be obvious
-    "S602",    # subprocess-popen-with-shell-eq... # -
-    "S603",    # subprocess-without-shell-equal... # -
-    "S604",    # call-with-shell-equals-true       # -
-    "S605",    # start-process-with-a-shell        # -
-    "S606",    # start-process-with-no-shell       # -
-    "S607",    # start-process-with-partial-path   # -
-    "S608",    # hardcoded-sql-expression          # -
-    "S609",    # unix-command-wildcard-injection   # -
-    "S610",    # django-extra                      # -
-    "S611",    # django-raw-sql                    # -
-    "S612",    # logging-config-insecure-listen    # -
-    "S701",    # jinja2-autoescape-false           # again: unhelpful, should be obvious; if done, it was intentional
-    "SIM102",  # collapsible-if                    # preference - readability (purely stylistic)
-    "SLF001",  # private-member-access             # unhelpful critique that offers nothing and just wants to shame you
-    "T201",    # print                             # doch
-    "T203",    # p-print                           # doch
-    "TD002",   # missing-todo-author               # there's only one developer
-    "TD003",   # missing-todo-link                 # there's only one developer; link where, localhost?
+    "D213",    # multi-line-summary-second-line    # moves summary line to second physical line of docstring
+    "ERA001",  # commented-out-code                # commented-out code is likely harmless and intentional
+    "F401",    # unused-import                     # removes imports while working if saved and fix-on-save is enabled
+    "FIX",     # flake8-fixme                      # useless nag about fixme/hack/todo/etc. comments
+    "INP001",  # implicit-namespace-package        # useless nag about the lack of an `__init__.py`
+    "N817",    # camelcase-imported-as-acronym     # N817-N818: stylistic
+    "N818",    # error-suffix-on-exception-name    # -
+    "PLC0414", # useless-import-alias              # intentional if present
+    "PLC0415", # import-outside-top-level          # imports in functions are useful in multiple different scenarios
+    "PLR2004", # magic-value-comparison            # useless nag
+    "PLW0603", # global-statement                  # intentional if present
+    "PTH",     # flake8-use-pathlib                # pathlib should be used with discretion due to performance overhead
+    "PYI021",  # docstring-in-stub                 # senseless - consider C extensions which consist of only stubs
+    "S1",      # flake8-bandit                     # various lints that should be obvious
+    "S311",    # ...non-cryptographic-random-usage # intentional if present
+    "S6",      # flake8-bandit                     # various lints that should be obvious
+    "S701",    # jinja2-autoescape-false           # intentional if present
+    "SIM102",  # collapsible-if                    # stylistic
+    "SLF001",  # private-member-access             # useless nag
+    "T20",     # flake8-print                      # doch
+    "TD",      # missing-todo-{author,link,...}    # -
   ]
 
   [lint.per-file-ignores]
     "*.pyi"    = [ "D404" ] # docstring-starts-with-this
     "*compat*" = [ "UP" ]   # pyupgrade
+
+    "__init__.py" = [
+      # "F403", # undefined-local-with-import-star
+      # "F405", # undefined-local-with-import-star-usage
+      #         # no excuses - use this: https://github.com/asmeurer/removestar
+    ]
 
     "*codemod*" = [
       # LibCST expects code to conform in a way which these rules forbid
@@ -97,13 +83,6 @@ exclude = [  ]
       "D",      # pydocstyle
       "Q000",   # bad-quotes-inline-string
       "S101",   # assert
-    ]
-
-    "__init__.py" = [
-      "F401", # unused-import
-      #  F403/5: no excuses - use this: https://github.com/asmeurer/removestar
-      # "F403", # undefined-local-with-import-star
-      # "F405", # undefined-local-with-import-star-usage
     ]
 
   [lint.flake8-unused-arguments]
@@ -129,12 +108,13 @@ exclude = [  ]
     ignore-var-parameters = true
 
   [lint.pylint]
-    allow-magic-value-types = [ "float", "int", "str" ]
-    max-args                = 30
-    max-bool-expr           = 30
-    max-branches            = 30
-    max-locals              = 30
-    max-nested-blocks       = 10
-    max-positional-args     = 10
-    max-returns             = 30
-    max-statements          = 75
+    # allow-magic-value-types = [ "float", "int", "str" ]
+
+    max-args            = 30
+    max-bool-expr       = 30
+    max-branches        = 30
+    max-locals          = 30
+    max-nested-blocks   = 10
+    max-positional-args = 10
+    max-returns         = 30
+    max-statements      = 75

@@ -1,4 +1,5 @@
 version: '0.2'
+language: en_US,de_DE
 useGitignore: false
 allowCompoundWords: true
 ignoreRandomStrings: true
