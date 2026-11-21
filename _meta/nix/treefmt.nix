@@ -6,6 +6,12 @@
 }: let
   cfgDir = "_meta/config";
 
+  pythonEnv = pkgs.python3.withPackages (ps: [ps.ruamel-yaml]);
+  yamlStripQuotes = pkgs.writeScriptBin "yaml-strip-quotes" ''
+    #!${pythonEnv}/bin/python3
+    ${builtins.readFile "${config.devenv.root}/_meta/scripts/yaml_strip_quotes.py"}
+  '';
+
   excludes = {
     css = [];
     go = ["**/vendor/*"];
@@ -154,8 +160,28 @@ in {
           };
 
           # ------------------------------- YAML -------------------------------
-          yamlfmt = {
+          yaml-strip-quotes = {
             priority = 0;
+            command = "${yamlStripQuotes}/bin/yaml-strip-quotes";
+            includes =
+              includes.yaml
+              ++ [
+                "*.yaml"
+                "*.yml"
+              ];
+            excludes =
+              excludes.yaml
+              ++ [
+                "*.sops.yml"
+                "*.sops.yaml"
+                "templates/*.yml"
+                "templates/*.yaml"
+                "*.j2.yml"
+                "*.j2.yaml"
+              ];
+          };
+          yamlfmt = {
+            priority = 1;
             command = lib.getExe pkgs.yamlfmt;
             excludes = excludes.yaml;
             includes = includes.yaml;
@@ -190,13 +216,6 @@ in {
           };
 
           # ------------------------------- HTML -------------------------------
-          #html-tidy = {
-          #  priority = 0;
-          #  command = lib.getExe pkgs.html-tidy;
-          #  excludes = excludes.html;
-          #  includes = includes.html;
-          #  options = ["-config" "${cfgDir}/html_tidy.txt"];
-          #};
           prettier-html = {
             priority = 0;
             command = lib.getExe pkgs.prettier;

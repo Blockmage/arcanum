@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       publish_to:
-        description: 'Publish to (test-pypi or skip)'
+        description: Publish to (test-pypi or skip)
         required: true
-        default: 'skip'
+        default: skip
         type: choice
         options:
           - test-pypi
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ['3.12', '3.13', '3.14']
 
     steps:
       - name: Checkout

@@ -27,21 +27,27 @@ in {
     hooks = {
       # -------------------------------- Hooks ---------------------------------
       actionlint.enable = true;
+
       cargo-check.enable = true;
+      clippy.enable = true;
+
+      gitleaks.enable = true;
+
       check-added-large-files.enable = true;
       check-case-conflicts.enable = true;
       check-merge-conflicts.enable = true;
       check-symlinks.enable = true;
-      clippy.enable = true;
-      cspell-msg.enable = true;
-      cspell-wsp.enable = true;
       end-of-file-fixer.enable = true;
       mixed-line-endings.enable = true;
+      trim-trailing-whitespace.enable = true;
+
+      cspell-msg.enable = true;
+      cspell-wsp.enable = true;
+
       pyright.enable = true;
       pytest.enable = true;
+
       treefmt.enable = true;
-      trim-trailing-whitespace.enable = true;
-      trufflehog.enable = true;
 
       # ------------------------------- Options --------------------------------
       check-added-large-files.args = ["--maxkb=8192"];
@@ -52,20 +58,6 @@ in {
           fail-on-change = false;
           no-cache = false;
         };
-      };
-
-      trufflehog = {
-        stages = ["pre-commit" "pre-push"];
-        args = [
-          "git"
-          "\"file://${wspRoot}\""
-          "--since-commit"
-          "HEAD"
-          "--results=verified"
-          "--fail"
-          "--exclude-paths=\"${cfgDir}/trufflehog_exclude.txt\""
-          "--detector-timeout=15s"
-        ];
       };
 
       pyright = {
